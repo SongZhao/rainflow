@@ -50,7 +50,7 @@
 - Direct Transactions navigation is removed; transactions are accessed through ledger/account detail pages and transaction drill-downs.
 - Multiple ledger switching, personal/shared ledger creation, and shared-ledger email invitations are implemented in the web shell.
 - Phone and desktop web receipt import stores the selected image with the transaction and supports viewing the attachment later.
-- Deferred TODO: browser-side or server-side receipt OCR is not implemented yet. Web users must manually enter amount, merchant, receipt date, and line-item details until OCR quality and incorrect-amount handling are validated.
+- Server-side web receipt OCR is provider-ready through the Supabase `extract-receipt` Edge Function and Google Vision. It remains unverified until `GOOGLE_VISION_API_KEY` is configured in Supabase secrets and tested against live receipts.
 
 ## Validation completed in this environment
 
@@ -88,7 +88,7 @@
 - Combined export/verified restore including attachment bytes.
 - Trusted attachment hash scanner, orphan cleanup, integrity warning UI, and deduplicated email worker.
 - Full receipt reattachment/recovery screen for a device-side `needs attention` case.
-- Browser-side receipt OCR for web receipt import, including protections against rewards points, reference numbers, card numbers, and other non-total amounts being selected as transaction totals.
+- Live Google Vision OCR testing for web receipt import, including protections against rewards points, reference numbers, card numbers, and other non-total amounts being selected as transaction totals.
 - Split transactions, search/filter depth, account register, and exact report reconciliation.
 - Automated UI, API, RLS, migration, accessibility, and backup/restore test suites.
 

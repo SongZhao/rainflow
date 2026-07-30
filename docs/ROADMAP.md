@@ -221,7 +221,7 @@ It intentionally excludes split transactions, advanced reports, CSV import, reco
 - Attachment integrity dashboard.
 - Accessibility review.
 - Production email delivery and templates.
-- Deferred TODO: browser-side or server-side receipt OCR for the phone and Mac web interfaces. Web receipt import should eventually prefill merchant, amount, receipt date, and likely line items, but the alpha keeps this manual until OCR quality, privacy behavior, and incorrect-amount handling are validated.
+- Provider-ready TODO: live-test server-side Google Vision OCR for the phone and Mac web interfaces. Web receipt import can prefill merchant, amount, receipt date, and likely line items after `GOOGLE_VISION_API_KEY` is configured in Supabase secrets; the alpha still requires user review before saving.
 
 ### Exit criteria
 

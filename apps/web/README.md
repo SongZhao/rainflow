@@ -30,7 +30,11 @@ The prototype includes:
 - Receipt photo/file selection, private upload, manifest finalization, and viewing
 - Reusable design tokens and responsive components
 
-Receipt OCR remains iPhone-first. Phone and desktop web receipt import stores
-the selected image with the saved transaction and exposes temporary private
-viewing links from transaction detail and attachment screens. Web users enter
-amount, merchant, receipt date, and line items manually until OCR is wired.
+Receipt OCR is server-side. Phone and desktop web receipt import sends the
+selected image to the Supabase `extract-receipt` Edge Function. That function
+calls Google Vision only when `GOOGLE_VISION_API_KEY` is configured in Supabase
+secrets, then returns editable suggestions for merchant, amount, receipt date,
+and line items. The Google key must never be exposed to the browser.
+
+If OCR is not configured or cannot confidently parse a receipt, the image still
+stays attached and the user manually reviews or enters the fields before saving.

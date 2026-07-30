@@ -62,6 +62,29 @@ The SQL function does **not** independently download and hash object bytes. A tr
 
 Unfinalized objects are logically orphaned and require a trusted service-role cleanup job based on age/path; app clients cannot delete or overwrite receipt objects. Accounting transactions remain valid even when an attachment later has an integrity incident.
 
+## Receipt OCR
+
+The `extract-receipt` Edge Function performs web receipt OCR for the phone and
+desktop web clients.
+
+Deploy it with:
+
+```bash
+supabase functions deploy extract-receipt
+```
+
+Then store the Google Vision API key in Supabase secrets:
+
+```bash
+supabase secrets set GOOGLE_VISION_API_KEY=YOUR_GOOGLE_VISION_API_KEY
+```
+
+Do not add the Google key to `.env.local`, `Local.xcconfig`, client source,
+or Git. Receipt images are sent from the signed-in web client to the Edge
+Function, and then to Google Vision for OCR. The returned values are suggestions
+only; users must review the amount, merchant, date, and line items before a
+transaction is saved.
+
 ## Production work still required
 
 - Execute and test both migrations on real Supabase infrastructure.

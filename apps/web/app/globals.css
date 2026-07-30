@@ -326,6 +326,13 @@ small { color: var(--text-secondary); font-weight: 450; }
 .receipt-dialog .form-note { margin: 0 18px 18px; }
 .form-note { color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
 .receipt-review-note { margin-top: 14px; color: var(--warning); background: rgba(255,176,32,.08); border: 1px solid rgba(255,176,32,.28); border-radius: 12px; padding: 10px 12px; }
+.receipt-review-panel { display: grid; gap: 8px; color: var(--text); font-size: 12px; line-height: 1.45; }
+.receipt-review-panel > strong { color: var(--text); }
+.receipt-review-panel > span { color: var(--text-secondary); }
+.receipt-line-items { display: grid; gap: 5px; margin-top: 2px; }
+.receipt-line-items span { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; border-top: 1px solid rgba(255,255,255,.08); padding-top: 5px; }
+.receipt-line-items b { font-variant-numeric: tabular-nums; }
+.receipt-warnings { margin: 0; padding-left: 18px; color: var(--warning); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 18px; }
 .split-actions { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; }
 .danger-button { color: var(--expense); border-color: rgba(255,92,99,.38); }

@@ -28,6 +28,10 @@ cd "$ROOT_DIR"
 supabase link --project-ref "$PROJECT_REF"
 supabase db push
 
+if [[ -d "$ROOT_DIR/supabase/functions/extract-receipt" ]]; then
+  supabase functions deploy extract-receipt
+fi
+
 echo
 cat <<'MESSAGE'
 Migrations were submitted. Now configure the Auth email template to include the
@@ -40,4 +44,12 @@ link-only email does not work with Rainflow's iPhone code-entry screen.
 
 Then verify the RLS/receipt checks in docs/TESTFLIGHT.md with two separate test
 users.
+
+Optional receipt OCR setup:
+
+  supabase secrets set GOOGLE_VISION_API_KEY=YOUR_GOOGLE_VISION_API_KEY
+  supabase functions deploy extract-receipt
+
+The Google Vision key must stay in Supabase secrets. Do not add it to the web
+app, iPhone app, Local.xcconfig, .env.local, or Git.
 MESSAGE

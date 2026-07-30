@@ -91,6 +91,18 @@ type EditTransaction = NewTransaction & {
   expectedRevision: number;
 };
 
+type ReceiptExtraction = {
+  status: "ok" | "not_configured" | "no_text" | "error";
+  fields: {
+    merchant?: string;
+    amountMinorUnits?: number;
+    date?: string;
+    lineItems: Array<{ description: string; amountMinorUnits?: number }>;
+  };
+  warnings: string[];
+  rawText?: string;
+};
+
 type AuthPhase = "checking" | "configurationRequired" | "signedOut" | "ready" | "needsLedger" | "failed";
 
 type LedgerContextValue = {
@@ -113,6 +125,7 @@ type LedgerContextValue = {
   addTransaction: (input: NewTransaction) => Promise<Transaction>;
   updateTransaction: (input: EditTransaction) => Promise<void>;
   deleteTransaction: (transaction: Transaction) => Promise<void>;
+  extractReceipt: (receiptFile: File) => Promise<ReceiptExtraction>;
   getReceiptViewURL: (attachmentID: string) => Promise<string>;
 };
 
@@ -492,6 +505,21 @@ export function LedgerProvider({ children }: { children: React.ReactNode }) {
     }
   }, [ledger, loadSnapshot]);
 
+  const extractReceipt = useCallback(async (receiptFile: File) => {
+    const client = requireSupabase(supabase);
+    const prepared = await prepareReceiptFile(receiptFile);
+    const imageBase64 = await blobToBase64(prepared.blob);
+    const { data, error } = await client.functions.invoke("extract-receipt", {
+      body: {
+        imageBase64,
+        mimeType: prepared.mimeType,
+        fileName: prepared.fileName,
+      },
+    });
+    if (error) throw error;
+    return normalizeReceiptExtraction(data);
+  }, []);
+
   const getReceiptViewURL = useCallback(async (attachmentID: string) => {
     const client = requireSupabase(supabase);
     const attachment = attachments.find((item) => item.id === attachmentID);
@@ -526,8 +554,9 @@ export function LedgerProvider({ children }: { children: React.ReactNode }) {
     addTransaction,
     updateTransaction,
     deleteTransaction,
+    extractReceipt,
     getReceiptViewURL
-  }), [phase, user, ledger, ledgers, accounts, transactions, attachments, errorMessage, isWorking, sendCode, verifyCode, signOut, loadSnapshot, createLedger, switchLedger, inviteLedgerMember, addTransaction, updateTransaction, deleteTransaction, getReceiptViewURL]);
+  }), [phase, user, ledger, ledgers, accounts, transactions, attachments, errorMessage, isWorking, sendCode, verifyCode, signOut, loadSnapshot, createLedger, switchLedger, inviteLedgerMember, addTransaction, updateTransaction, deleteTransaction, extractReceipt, getReceiptViewURL]);
 
   return <LedgerContext.Provider value={value}>{children}</LedgerContext.Provider>;
 }
@@ -706,6 +735,33 @@ async function prepareReceiptFile(file: File) {
     mimeType,
     byteSize: file.size,
     sha256Hex: Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("")
+  };
+}
+
+async function blobToBase64(blob: Blob) {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    const chunk = bytes.subarray(index, index + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
+}
+
+function normalizeReceiptExtraction(value: unknown): ReceiptExtraction {
+  const candidate = value as Partial<ReceiptExtraction> | null;
+  const status = candidate?.status;
+  return {
+    status: status === "ok" || status === "not_configured" || status === "no_text" || status === "error" ? status : "error",
+    fields: {
+      merchant: typeof candidate?.fields?.merchant === "string" ? candidate.fields.merchant : undefined,
+      amountMinorUnits: typeof candidate?.fields?.amountMinorUnits === "number" ? candidate.fields.amountMinorUnits : undefined,
+      date: typeof candidate?.fields?.date === "string" ? candidate.fields.date : undefined,
+      lineItems: Array.isArray(candidate?.fields?.lineItems) ? candidate.fields.lineItems.filter((item) => typeof item.description === "string") : [],
+    },
+    warnings: Array.isArray(candidate?.warnings) ? candidate.warnings.filter((item) => typeof item === "string") : ["Receipt OCR returned an unexpected response."],
+    rawText: typeof candidate?.rawText === "string" ? candidate.rawText : undefined,
   };
 }
 

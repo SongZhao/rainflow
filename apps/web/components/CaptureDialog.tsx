@@ -9,7 +9,7 @@ import { useLedger } from "./LedgerProvider";
 type Mode = "menu" | "form" | "success";
 
 export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { accounts, addTransaction, isWorking, errorMessage } = useLedger();
+  const { accounts, addTransaction, extractReceipt, isWorking, errorMessage } = useLedger();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const [mode, setMode] = useState<Mode>("menu");
@@ -21,6 +21,9 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
   const [categoryID, setCategoryID] = useState("");
   const [note, setNote] = useState("");
   const [receipt, setReceipt] = useState<File | null>(null);
+  const [ocrStatus, setOcrStatus] = useState<"idle" | "reading" | "applied" | "needsReview" | "unavailable">("idle");
+  const [ocrWarnings, setOcrWarnings] = useState<string[]>([]);
+  const [lineItems, setLineItems] = useState<Array<{ description: string; amountMinorUnits?: number }>>([]);
   const [savedAmount, setSavedAmount] = useState(0);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -59,6 +62,9 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
     setPayee("");
     setNote("");
     setReceipt(null);
+    setOcrStatus("idle");
+    setOcrWarnings([]);
+    setLineItems([]);
     setSaveError(null);
     onClose();
   }
@@ -67,13 +73,35 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
     const file = event.target.files?.[0];
     if (!file) return;
     setReceipt(file);
+    setOcrStatus("reading");
+    setOcrWarnings([]);
+    setLineItems([]);
     setMode("form");
+    void extract(file);
   }
 
   function clearReceipt() {
     setReceipt(null);
+    setOcrStatus("idle");
+    setOcrWarnings([]);
+    setLineItems([]);
     if (fileInputRef.current) fileInputRef.current.value = "";
     if (cameraInputRef.current) cameraInputRef.current.value = "";
+  }
+
+  async function extract(file: File) {
+    try {
+      const result = await extractReceipt(file);
+      if (result.fields.amountMinorUnits) setAmount((result.fields.amountMinorUnits / 100).toFixed(2));
+      if (result.fields.date) setDate(result.fields.date);
+      if (result.fields.merchant) setPayee(result.fields.merchant);
+      setLineItems(result.fields.lineItems ?? []);
+      setOcrWarnings(result.warnings);
+      setOcrStatus(result.status === "ok" ? "applied" : result.status === "not_configured" ? "unavailable" : "needsReview");
+    } catch (error) {
+      setOcrStatus("needsReview");
+      setOcrWarnings([error instanceof Error ? error.message : "Receipt OCR failed. Enter the values manually."]);
+    }
   }
 
   async function save(event: FormEvent) {
@@ -182,11 +210,7 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
               </div>
             ) : null}
 
-            {receipt ? (
-              <p className="form-note receipt-review-note">Web OCR is not enabled yet, so Rainflow will not guess the amount, merchant, receipt date, or line items. Enter the receipt values manually; the image will still be attached.</p>
-            ) : (
-              <p className="form-note">This saves to the same Supabase ledger as the iPhone app.</p>
-            )}
+            {receipt ? <ReceiptExtractionState status={ocrStatus} warnings={ocrWarnings} lineItems={lineItems} /> : <p className="form-note">This saves to the same Supabase ledger as the iPhone app.</p>}
             {saveError || errorMessage ? <p className="auth-error">{saveError ?? errorMessage}</p> : null}
             <div className="dialog-actions">
               <button className="secondary-button" type="button" onClick={() => setMode("menu")}>Back</button>
@@ -216,5 +240,68 @@ function CaptureOption({ icon, title, description, onClick }: { icon: React.Reac
       <span><strong>{title}</strong><small>{description}</small></span>
       <span aria-hidden="true">›</span>
     </button>
+  );
+}
+
+function ReceiptExtractionState({
+  status,
+  warnings,
+  lineItems
+}: {
+  status: "idle" | "reading" | "applied" | "needsReview" | "unavailable";
+  warnings: string[];
+  lineItems: Array<{ description: string; amountMinorUnits?: number }>;
+}) {
+  if (status === "reading") {
+    return <p className="form-note receipt-review-note">Reading receipt with OCR. Keep reviewing the fields; Rainflow will fill suggestions when they are ready.</p>;
+  }
+
+  if (status === "applied") {
+    return (
+      <div className="receipt-review-note receipt-review-panel">
+        <strong>Receipt suggestions applied</strong>
+        <span>Review the amount, merchant, and receipt date before saving.</span>
+        {lineItems.length > 0 ? <ReceiptLineItems items={lineItems} /> : null}
+        {warnings.length > 0 ? <ReceiptWarnings warnings={warnings} /> : null}
+      </div>
+    );
+  }
+
+  if (status === "unavailable") {
+    return <p className="form-note receipt-review-note">Receipt OCR is not configured in Supabase yet. Enter the receipt values manually; the image will still be attached.</p>;
+  }
+
+  if (status === "needsReview") {
+    return (
+      <div className="receipt-review-note receipt-review-panel">
+        <strong>Receipt needs manual review</strong>
+        <span>Rainflow could not confidently read every field. Enter or correct the values before saving.</span>
+        <ReceiptWarnings warnings={warnings} />
+      </div>
+    );
+  }
+
+  return <p className="form-note receipt-review-note">Receipt selected. Rainflow will store it privately with this transaction.</p>;
+}
+
+function ReceiptLineItems({ items }: { items: Array<{ description: string; amountMinorUnits?: number }> }) {
+  return (
+    <div className="receipt-line-items">
+      {items.slice(0, 6).map((item, index) => (
+        <span key={`${item.description}-${index}`}>
+          <small>{item.description}</small>
+          <b>{typeof item.amountMinorUnits === "number" ? formatMoney(item.amountMinorUnits) : "Read"}</b>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function ReceiptWarnings({ warnings }: { warnings: string[] }) {
+  if (warnings.length === 0) return null;
+  return (
+    <ul className="receipt-warnings">
+      {warnings.slice(0, 4).map((warning) => <li key={warning}>{warning}</li>)}
+    </ul>
   );
 }
