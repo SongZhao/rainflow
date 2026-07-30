@@ -92,14 +92,17 @@ type EditTransaction = NewTransaction & {
 };
 
 type ReceiptExtraction = {
-  status: "ok" | "not_configured" | "no_text" | "error";
+  status: "ok" | "incomplete" | "not_configured" | "no_text" | "error";
   fields: {
-    merchant?: string;
-    amountMinorUnits?: number;
-    date?: string;
+    merchant?: string | null;
+    amountMinorUnits?: number | null;
+    date?: string | null;
     lineItems: Array<{ description: string; amountMinorUnits?: number }>;
   };
   warnings: string[];
+  missingFields: string[];
+  recommendedAction?: "add_top_photo" | "add_clearer_photo" | "review_and_save" | "manual_entry" | "technical_support";
+  requestID?: string;
   rawText?: string;
 };
 
@@ -125,7 +128,7 @@ type LedgerContextValue = {
   addTransaction: (input: NewTransaction) => Promise<Transaction>;
   updateTransaction: (input: EditTransaction) => Promise<void>;
   deleteTransaction: (transaction: Transaction) => Promise<void>;
-  extractReceipt: (receiptFile: File) => Promise<ReceiptExtraction>;
+  extractReceipt: (receiptFiles: File | File[]) => Promise<ReceiptExtraction>;
   getReceiptViewURL: (attachmentID: string) => Promise<string>;
 };
 
@@ -505,15 +508,22 @@ export function LedgerProvider({ children }: { children: React.ReactNode }) {
     }
   }, [ledger, loadSnapshot]);
 
-  const extractReceipt = useCallback(async (receiptFile: File) => {
+  const extractReceipt = useCallback(async (receiptFiles: File | File[]) => {
     const client = requireSupabase(supabase);
-    const prepared = await prepareReceiptFile(receiptFile);
-    const imageBase64 = await blobToBase64(prepared.blob);
+    const files = Array.isArray(receiptFiles) ? receiptFiles : [receiptFiles];
+    const prepared = await Promise.all(files.map((file) => prepareReceiptFile(file)));
+    const images = await Promise.all(prepared.map(async (file) => ({
+      imageBase64: await blobToBase64(file.blob),
+      mimeType: file.mimeType,
+      fileName: file.fileName,
+    })));
+    const firstImage = images[0];
     const { data, error } = await client.functions.invoke("extract-receipt", {
       body: {
-        imageBase64,
-        mimeType: prepared.mimeType,
-        fileName: prepared.fileName,
+        imageBase64: firstImage?.imageBase64,
+        mimeType: firstImage?.mimeType,
+        fileName: firstImage?.fileName,
+        images,
       },
     });
     if (error) throw error;
@@ -753,14 +763,17 @@ function normalizeReceiptExtraction(value: unknown): ReceiptExtraction {
   const candidate = value as Partial<ReceiptExtraction> | null;
   const status = candidate?.status;
   return {
-    status: status === "ok" || status === "not_configured" || status === "no_text" || status === "error" ? status : "error",
+    status: status === "ok" || status === "incomplete" || status === "not_configured" || status === "no_text" || status === "error" ? status : "error",
     fields: {
-      merchant: typeof candidate?.fields?.merchant === "string" ? candidate.fields.merchant : undefined,
-      amountMinorUnits: typeof candidate?.fields?.amountMinorUnits === "number" ? candidate.fields.amountMinorUnits : undefined,
-      date: typeof candidate?.fields?.date === "string" ? candidate.fields.date : undefined,
+      merchant: typeof candidate?.fields?.merchant === "string" ? candidate.fields.merchant : null,
+      amountMinorUnits: typeof candidate?.fields?.amountMinorUnits === "number" ? candidate.fields.amountMinorUnits : null,
+      date: typeof candidate?.fields?.date === "string" ? candidate.fields.date : null,
       lineItems: Array.isArray(candidate?.fields?.lineItems) ? candidate.fields.lineItems.filter((item) => typeof item.description === "string") : [],
     },
     warnings: Array.isArray(candidate?.warnings) ? candidate.warnings.filter((item) => typeof item === "string") : ["Receipt OCR returned an unexpected response."],
+    missingFields: Array.isArray(candidate?.missingFields) ? candidate.missingFields.filter((item) => typeof item === "string") : [],
+    recommendedAction: candidate?.recommendedAction,
+    requestID: typeof candidate?.requestID === "string" ? candidate.requestID : undefined,
     rawText: typeof candidate?.rawText === "string" ? candidate.rawText : undefined,
   };
 }

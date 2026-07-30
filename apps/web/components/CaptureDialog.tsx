@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, Check, FileImage, PenLine, X } from "lucide-react";
+import { Camera, Check, FileImage, Images, PenLine, X } from "lucide-react";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { TransactionKind } from "@/lib/types";
 import { formatMoney } from "@/lib/format";
@@ -20,13 +20,15 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
   const [accountID, setAccountID] = useState("");
   const [categoryID, setCategoryID] = useState("");
   const [note, setNote] = useState("");
-  const [receipt, setReceipt] = useState<File | null>(null);
+  const [receipts, setReceipts] = useState<File[]>([]);
   const [ocrStatus, setOcrStatus] = useState<"idle" | "reading" | "applied" | "needsReview" | "unavailable">("idle");
   const [ocrWarnings, setOcrWarnings] = useState<string[]>([]);
+  const [missingFields, setMissingFields] = useState<string[]>([]);
   const [lineItems, setLineItems] = useState<Array<{ description: string; amountMinorUnits?: number }>>([]);
   const [savedAmount, setSavedAmount] = useState(0);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  const receipt = receipts[0] ?? null;
   const previewUrl = useMemo(() => (receipt ? URL.createObjectURL(receipt) : null), [receipt]);
   const sourceAccounts = useMemo(() => accounts.filter((item) => item.type === "asset" || item.type === "liability"), [accounts]);
   const destinationAccounts = useMemo(() => {
@@ -61,41 +63,46 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
     setAmount("");
     setPayee("");
     setNote("");
-    setReceipt(null);
+    setReceipts([]);
     setOcrStatus("idle");
     setOcrWarnings([]);
+    setMissingFields([]);
     setLineItems([]);
     setSaveError(null);
     onClose();
   }
 
   function selectFile(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setReceipt(file);
+    const files = Array.from(event.target.files ?? []);
+    if (files.length === 0) return;
+    const nextReceipts = [...receipts, ...files];
+    setReceipts(nextReceipts);
     setOcrStatus("reading");
     setOcrWarnings([]);
+    setMissingFields([]);
     setLineItems([]);
     setMode("form");
-    void extract(file);
+    void extract(nextReceipts);
   }
 
   function clearReceipt() {
-    setReceipt(null);
+    setReceipts([]);
     setOcrStatus("idle");
     setOcrWarnings([]);
+    setMissingFields([]);
     setLineItems([]);
     if (fileInputRef.current) fileInputRef.current.value = "";
     if (cameraInputRef.current) cameraInputRef.current.value = "";
   }
 
-  async function extract(file: File) {
+  async function extract(files: File[]) {
     try {
-      const result = await extractReceipt(file);
+      const result = await extractReceipt(files);
       if (result.fields.amountMinorUnits) setAmount((result.fields.amountMinorUnits / 100).toFixed(2));
       if (result.fields.date) setDate(result.fields.date);
       if (result.fields.merchant) setPayee(result.fields.merchant);
       setLineItems(result.fields.lineItems ?? []);
+      setMissingFields(result.missingFields);
       setOcrWarnings(result.warnings);
       setOcrStatus(result.status === "ok" ? "applied" : result.status === "not_configured" ? "unavailable" : "needsReview");
     } catch (error) {
@@ -144,12 +151,12 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
         {mode === "menu" ? (
           <div className="capture-menu">
             <CaptureOption icon={<Camera size={21} />} title="Take photo" description="Capture a receipt" onClick={() => cameraInputRef.current?.click()} />
-            <CaptureOption icon={<FileImage size={21} />} title="Choose from library" description="Select a receipt image" onClick={() => fileInputRef.current?.click()} />
+            <CaptureOption icon={<FileImage size={21} />} title="Choose from library" description="Select receipt images" onClick={() => fileInputRef.current?.click()} />
             <CaptureOption icon={<PenLine size={21} />} title="Add manually" description="Enter without a receipt" onClick={() => {
               clearReceipt();
               setMode("form");
             }} />
-            <input ref={fileInputRef} hidden type="file" accept="image/*" onChange={selectFile} />
+            <input ref={fileInputRef} hidden type="file" accept="image/*" multiple onChange={selectFile} />
             <input ref={cameraInputRef} hidden type="file" accept="image/*" capture="environment" onChange={selectFile} />
           </div>
         ) : null}
@@ -203,14 +210,24 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={previewUrl} alt="Selected receipt preview" />
                 <div>
-                  <strong>{receipt?.name}</strong>
-                  <span>This receipt will be stored privately with the transaction.</span>
+                  <strong>{receipts.length > 1 ? `${receipts.length} receipt photos selected` : receipt?.name}</strong>
+                  <span>{receipts.length > 1 ? "Rainflow will read the photos together. The first image will be attached to the saved transaction." : "This receipt will be stored privately with the transaction."}</span>
+                  <button className="inline-link" type="button" onClick={() => fileInputRef.current?.click()}><Images size={13} /> Add another photo</button>
                   <button className="inline-link" type="button" onClick={clearReceipt}>Remove receipt</button>
                 </div>
               </div>
             ) : null}
 
-            {receipt ? <ReceiptExtractionState status={ocrStatus} warnings={ocrWarnings} lineItems={lineItems} /> : <p className="form-note">This saves to the same Supabase ledger as the iPhone app.</p>}
+            {receipt ? (
+              <ReceiptExtractionState
+                status={ocrStatus}
+                warnings={ocrWarnings}
+                missingFields={missingFields}
+                lineItems={lineItems}
+                onAddPhoto={() => fileInputRef.current?.click()}
+                onUseExtracted={() => setOcrStatus("applied")}
+              />
+            ) : <p className="form-note">This saves to the same Supabase ledger as the iPhone app.</p>}
             {saveError || errorMessage ? <p className="auth-error">{saveError ?? errorMessage}</p> : null}
             <div className="dialog-actions">
               <button className="secondary-button" type="button" onClick={() => setMode("menu")}>Back</button>
@@ -246,11 +263,17 @@ function CaptureOption({ icon, title, description, onClick }: { icon: React.Reac
 function ReceiptExtractionState({
   status,
   warnings,
-  lineItems
+  missingFields,
+  lineItems,
+  onAddPhoto,
+  onUseExtracted
 }: {
   status: "idle" | "reading" | "applied" | "needsReview" | "unavailable";
   warnings: string[];
+  missingFields: string[];
   lineItems: Array<{ description: string; amountMinorUnits?: number }>;
+  onAddPhoto: () => void;
+  onUseExtracted: () => void;
 }) {
   if (status === "reading") {
     return <p className="form-note receipt-review-note">Reading receipt with OCR. Keep reviewing the fields; Rainflow will fill suggestions when they are ready.</p>;
@@ -275,7 +298,11 @@ function ReceiptExtractionState({
     return (
       <div className="receipt-review-note receipt-review-panel">
         <strong>Receipt needs manual review</strong>
-        <span>Rainflow could not confidently read every field. Enter or correct the values before saving.</span>
+        <span>{missingFields.length > 0 ? `Rainflow filled what it could. Missing: ${missingFields.join(", ")}.` : "Rainflow could not confidently read every field. Enter or correct the values before saving."}</span>
+        <div className="receipt-review-actions">
+          <button className="secondary-button" type="button" onClick={onAddPhoto}><Images size={14} /> Add another photo</button>
+          <button className="secondary-button" type="button" onClick={onUseExtracted}><Check size={14} /> Use extracted info</button>
+        </div>
         <ReceiptWarnings warnings={warnings} />
       </div>
     );

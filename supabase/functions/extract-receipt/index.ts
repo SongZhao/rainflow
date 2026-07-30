@@ -1,4 +1,4 @@
-type ExtractionStatus = "ok" | "not_configured" | "no_text" | "error";
+type ExtractionStatus = "ok" | "incomplete" | "not_configured" | "no_text" | "error";
 
 type ReceiptLineItem = {
   description: string;
@@ -6,9 +6,9 @@ type ReceiptLineItem = {
 };
 
 type ReceiptFields = {
-  merchant?: string;
-  amountMinorUnits?: number;
-  date?: string;
+  merchant?: string | null;
+  amountMinorUnits?: number | null;
+  date?: string | null;
   lineItems: ReceiptLineItem[];
 };
 
@@ -16,6 +16,9 @@ type ExtractReceiptResponse = {
   status: ExtractionStatus;
   fields: ReceiptFields;
   warnings: string[];
+  missingFields?: string[];
+  recommendedAction?: "add_top_photo" | "add_clearer_photo" | "review_and_save" | "manual_entry" | "technical_support";
+  requestID?: string;
   rawText?: string;
 };
 
@@ -25,29 +28,38 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-Deno.serve(async (request) => {
+if (import.meta.main) {
+  Deno.serve(handleRequest);
+}
+
+export async function handleRequest(request: Request) {
+  const requestID = crypto.randomUUID();
   if (request.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
   if (request.method !== "POST") {
-    return json({ status: "error", fields: emptyFields(), warnings: ["Use POST."] }, 405);
+    return json({ status: "error", fields: emptyFields(), warnings: ["Use POST."], requestID }, 405);
   }
 
   try {
     const user = await requireUser(request.headers.get("authorization") ?? "");
     if (!user?.id) {
-      return json({ status: "error", fields: emptyFields(), warnings: ["Sign in before extracting a receipt."] }, 401);
+      logReceiptEvent("auth_failed", requestID);
+      return json({ status: "error", fields: emptyFields(), warnings: ["Sign in before extracting a receipt."], requestID }, 401);
     }
 
     const body = await request.json();
-    const imageBase64 = typeof body.imageBase64 === "string" ? body.imageBase64 : "";
-    const mimeType = typeof body.mimeType === "string" ? body.mimeType : "image/jpeg";
+    const images = normalizeImages(body);
+    const firstImage = images[0];
 
-    if (!/^image\/(jpeg|png|heic|heif)$/.test(mimeType)) {
-      return json({ status: "error", fields: emptyFields(), warnings: ["Choose a JPG, PNG, HEIC, or HEIF receipt image."] }, 400);
+    if (images.length === 0 || !firstImage) {
+      return json({ status: "error", fields: emptyFields(), warnings: ["Add at least one receipt image."], requestID }, 400);
     }
-    if (imageBase64.length < 64 || imageBase64.length > 14_000_000) {
-      return json({ status: "error", fields: emptyFields(), warnings: ["Receipt image must be smaller than 10 MB."] }, 400);
+    if (images.some((image) => !/^image\/(jpeg|png|heic|heif)$/.test(image.mimeType))) {
+      return json({ status: "error", fields: emptyFields(), warnings: ["Choose JPG, PNG, HEIC, or HEIF receipt images."], requestID }, 400);
+    }
+    if (images.some((image) => image.imageBase64.length < 64 || image.imageBase64.length > 14_000_000)) {
+      return json({ status: "error", fields: emptyFields(), warnings: ["Each receipt image must be smaller than 10 MB."], requestID }, 400);
     }
 
     const googleVisionAPIKey = Deno.env.get("GOOGLE_VISION_API_KEY")?.trim();
@@ -56,30 +68,47 @@ Deno.serve(async (request) => {
         status: "not_configured",
         fields: emptyFields(),
         warnings: ["Receipt OCR is not configured for this environment yet."],
+        missingFields: [],
+        recommendedAction: "manual_entry",
+        requestID,
       });
     }
 
-    const rawText = await readTextWithGoogleVision(imageBase64, googleVisionAPIKey);
+    const rawTexts = await Promise.all(images.map((image) => readTextWithGoogleVision(image.imageBase64, googleVisionAPIKey, requestID)));
+    const rawText = mergeReceiptText(rawTexts);
     if (!rawText.trim()) {
       return json({
         status: "no_text",
         fields: emptyFields(),
         warnings: ["No readable receipt text was found."],
+        missingFields: ["merchant", "amount", "date"],
+        recommendedAction: "add_clearer_photo",
+        requestID,
       });
     }
 
     const parsed = parseReceiptText(rawText);
+    logReceiptEvent("parsed", requestID, {
+      status: parsed.status,
+      imageCount: images.length,
+      missingFields: parsed.missingFields,
+      warningCount: parsed.warnings.length,
+    });
     return json({
-      status: "ok",
+      status: parsed.status,
       fields: parsed.fields,
       warnings: parsed.warnings,
+      missingFields: parsed.missingFields,
+      recommendedAction: parsed.recommendedAction,
+      requestID,
       rawText: rawText.slice(0, 12_000),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Receipt OCR failed.";
-    return json({ status: "error", fields: emptyFields(), warnings: [message] }, 500);
+    logReceiptEvent("technical_error", requestID, { message: sanitizeLogMessage(message) });
+    return json({ status: "error", fields: emptyFields(), warnings: [message], recommendedAction: "technical_support", requestID }, 500);
   }
-});
+}
 
 async function requireUser(authHeader: string) {
   if (!authHeader.toLowerCase().startsWith("bearer ")) return null;
@@ -97,7 +126,7 @@ async function requireUser(authHeader: string) {
   return response.json();
 }
 
-async function readTextWithGoogleVision(imageBase64: string, apiKey: string) {
+async function readTextWithGoogleVision(imageBase64: string, apiKey: string, requestID: string) {
   const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${encodeURIComponent(apiKey)}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -111,9 +140,10 @@ async function readTextWithGoogleVision(imageBase64: string, apiKey: string) {
     }),
   });
 
-  const result = await response.json();
+  const result = await response.json().catch(() => null);
   if (!response.ok) {
     const message = result?.error?.message ?? "Google Vision OCR request failed.";
+    logReceiptEvent("provider_error", requestID, { status: response.status, message: sanitizeLogMessage(message) });
     throw new Error(message);
   }
 
@@ -122,7 +152,7 @@ async function readTextWithGoogleVision(imageBase64: string, apiKey: string) {
   return String(first?.fullTextAnnotation?.text ?? first?.textAnnotations?.[0]?.description ?? "");
 }
 
-function parseReceiptText(rawText: string) {
+export function parseReceiptText(rawText: string) {
   const lines = rawText
     .split(/\r?\n/)
     .map((line) => line.replace(/\s+/g, " ").trim())
@@ -132,20 +162,63 @@ function parseReceiptText(rawText: string) {
   const date = chooseDate(lines);
   const merchant = chooseMerchant(lines);
   const lineItems = chooseLineItems(lines);
+  const missingFields = [
+    merchant ? null : "merchant",
+    amount ? null : "amount",
+    date ? null : "date",
+  ].filter((item): item is string => Boolean(item));
 
   if (!amount) warnings.push("No high-confidence receipt total was found.");
   if (!date) warnings.push("No receipt transaction date was found.");
   if (!merchant) warnings.push("No merchant name was found.");
+  if (missingFields.includes("merchant") || missingFields.includes("date")) {
+    warnings.push("This looks like a partial receipt. Add the top section or fill the missing fields manually.");
+  }
 
   return {
+    status: missingFields.length > 0 ? "incomplete" as const : "ok" as const,
     fields: {
-      merchant,
-      amountMinorUnits: amount?.amountMinorUnits,
-      date,
+      merchant: merchant ?? null,
+      amountMinorUnits: amount?.amountMinorUnits ?? null,
+      date: date ?? null,
       lineItems,
     },
+    missingFields,
+    recommendedAction: missingFields.includes("merchant") || missingFields.includes("date") ? "add_top_photo" as const : "review_and_save" as const,
     warnings,
   };
+}
+
+function normalizeImages(body: unknown) {
+  const candidate = body as {
+    imageBase64?: unknown;
+    mimeType?: unknown;
+    images?: Array<{ imageBase64?: unknown; mimeType?: unknown }>;
+  } | null;
+  if (Array.isArray(candidate?.images)) {
+    return candidate.images.map((image) => ({
+      imageBase64: typeof image.imageBase64 === "string" ? image.imageBase64 : "",
+      mimeType: typeof image.mimeType === "string" ? image.mimeType : "image/jpeg",
+    }));
+  }
+  return [{
+    imageBase64: typeof candidate?.imageBase64 === "string" ? candidate.imageBase64 : "",
+    mimeType: typeof candidate?.mimeType === "string" ? candidate.mimeType : "image/jpeg",
+  }];
+}
+
+export function mergeReceiptText(parts: string[]) {
+  const seen = new Set<string>();
+  const merged: string[] = [];
+  for (const part of parts) {
+    for (const line of part.split(/\r?\n/)) {
+      const normalized = line.replace(/\s+/g, " ").trim();
+      if (!normalized || seen.has(normalized.toLowerCase())) continue;
+      seen.add(normalized.toLowerCase());
+      merged.push(normalized);
+    }
+  }
+  return merged.join("\n");
 }
 
 function chooseAmount(lines: string[]) {
@@ -253,7 +326,7 @@ function normalizeMerchant(value: string) {
 }
 
 function emptyFields(): ReceiptFields {
-  return { lineItems: [] };
+  return { merchant: null, amountMinorUnits: null, date: null, lineItems: [] };
 }
 
 function json(body: ExtractReceiptResponse, status = 200) {
@@ -264,4 +337,12 @@ function json(body: ExtractReceiptResponse, status = 200) {
       "content-type": "application/json",
     },
   });
+}
+
+function logReceiptEvent(event: string, requestID: string, details: Record<string, unknown> = {}) {
+  console.log(JSON.stringify({ event: `receipt_ocr_${event}`, requestID, ...details }));
+}
+
+function sanitizeLogMessage(value: string) {
+  return value.replace(/key=[^&\s]+/gi, "key=[redacted]").slice(0, 240);
 }

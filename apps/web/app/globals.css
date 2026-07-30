@@ -329,6 +329,8 @@ small { color: var(--text-secondary); font-weight: 450; }
 .receipt-review-panel { display: grid; gap: 8px; color: var(--text); font-size: 12px; line-height: 1.45; }
 .receipt-review-panel > strong { color: var(--text); }
 .receipt-review-panel > span { color: var(--text-secondary); }
+.receipt-review-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.receipt-review-actions .secondary-button { min-height: 34px; padding: 0 11px; border-radius: 8px; font-size: 12px; }
 .receipt-line-items { display: grid; gap: 5px; margin-top: 2px; }
 .receipt-line-items span { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; border-top: 1px solid rgba(255,255,255,.08); padding-top: 5px; }
 .receipt-line-items b { font-variant-numeric: tabular-nums; }
