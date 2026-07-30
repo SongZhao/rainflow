@@ -71,3 +71,4 @@ On a Mac, you can also double-click `Prepare-Rainflow.command`. Then follow [doc
 ## Security boundary
 
 Only the Supabase project URL and **publishable** client key belong in the iPhone app. Never add a service-role key, database password, Apple signing certificate, private key, or App Store Connect API secret to this repository.
+# rainflow
