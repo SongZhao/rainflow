@@ -13,7 +13,7 @@ async function main() {
   const serverWasRunning = await isServerReady();
 
   if (!serverWasRunning) {
-    serverProcess = spawn("npm", ["run", "dev:e2e"], {
+    serverProcess = spawn("npm", ["run", "dev:auth"], {
       cwd: process.cwd(),
       stdio: "inherit",
       env: process.env,

@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:auth": "next dev --hostname 127.0.0.1 --port 3210",
     "dev:e2e": "NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_test_0000000000000000000000000000000000000000 next dev --hostname 127.0.0.1 --port 3210",
     "build": "next build",
     "cf:build": "opennextjs-cloudflare build",
