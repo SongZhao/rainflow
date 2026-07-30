@@ -450,6 +450,17 @@ export function LedgerProvider({ children }: { children: React.ReactNode }) {
         p_postings: postings
       });
       if (error) throw error;
+
+      if (input.receiptFile) {
+        await uploadAndFinalizeReceipt({
+          client,
+          user,
+          ledgerID: ledger.id,
+          transactionID: input.id,
+          receiptFile: input.receiptFile
+        });
+      }
+
       await loadSnapshot();
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Could not update transaction.");
@@ -457,7 +468,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsWorking(false);
     }
-  }, [accounts, ledger, loadSnapshot]);
+  }, [accounts, ledger, loadSnapshot, user]);
 
   const deleteTransaction = useCallback(async (transaction: Transaction) => {
     const client = requireSupabase(supabase);

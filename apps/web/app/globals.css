@@ -218,6 +218,7 @@ small { color: var(--text-secondary); font-weight: 450; }
 .detail-grid > div { min-height: 72px; border: 1px solid var(--border); border-radius: 12px; background: rgba(255,255,255,.018); padding: 12px; }
 .detail-grid span { display: block; color: var(--text-secondary); font-size: 11px; margin-bottom: 7px; }
 .detail-grid strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.detail-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 18px; }
 .compact-empty { min-height: 150px; }
 .ledger-calendar-card { display: grid; gap: 14px; }
 .calendar-card-header { align-items: center; }
@@ -318,6 +319,8 @@ small { color: var(--text-secondary); font-weight: 450; }
 .receipt-preview img { width: 80px; height: 80px; object-fit: cover; border-radius: 8px; }
 .receipt-preview strong, .receipt-preview span { display: block; }
 .receipt-preview span { color: var(--text-secondary); font-size: 11px; margin-top: 4px; }
+.receipt-file-field input { min-height: auto; padding: 10px 12px; }
+.receipt-file-field small { margin-top: 6px; }
 .receipt-full-preview { display: block; width: calc(100% - 36px); max-height: min(72vh, 900px); object-fit: contain; margin: 18px; border-radius: 14px; background: var(--background); border: 1px solid var(--border); }
 .receipt-dialog .form-note { margin: 0 18px 18px; }
 .form-note { color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
