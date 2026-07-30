@@ -30,6 +30,7 @@ The prototype includes:
 - Receipt photo/file selection, private upload, manifest finalization, and viewing
 - Reusable design tokens and responsive components
 
-Receipt OCR remains iPhone-first. Web receipt import stores the selected image
-with the saved transaction and exposes temporary private viewing links from the
-Transactions and Attachments screens.
+Receipt OCR remains iPhone-first. Phone and desktop web receipt import stores
+the selected image with the saved transaction and exposes temporary private
+viewing links from transaction detail and attachment screens. Web users enter
+amount, merchant, receipt date, and line items manually until OCR is wired.

@@ -49,8 +49,8 @@
 - Dashboard, account, transaction, report, attachment, add-entry, transaction-detail, ledger-detail, and account-detail views.
 - Direct Transactions navigation is removed; transactions are accessed through ledger/account detail pages and transaction drill-downs.
 - Multiple ledger switching, personal/shared ledger creation, and shared-ledger email invitations are implemented in the web shell.
-- Browser receipt import stores the selected image with the transaction and supports viewing the attachment later.
-- Deferred TODO: browser-side receipt OCR is not implemented yet. Web users must manually enter amount, merchant, date, and line-item details until OCR quality and incorrect-amount handling are validated.
+- Phone and desktop web receipt import stores the selected image with the transaction and supports viewing the attachment later.
+- Deferred TODO: browser-side or server-side receipt OCR is not implemented yet. Web users must manually enter amount, merchant, receipt date, and line-item details until OCR quality and incorrect-amount handling are validated.
 
 ## Validation completed in this environment
 

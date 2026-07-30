@@ -319,11 +319,13 @@ small { color: var(--text-secondary); font-weight: 450; }
 .receipt-preview img { width: 80px; height: 80px; object-fit: cover; border-radius: 8px; }
 .receipt-preview strong, .receipt-preview span { display: block; }
 .receipt-preview span { color: var(--text-secondary); font-size: 11px; margin-top: 4px; }
+.receipt-preview .inline-link { margin-top: 7px; }
 .receipt-file-field input { min-height: auto; padding: 10px 12px; }
 .receipt-file-field small { margin-top: 6px; }
 .receipt-full-preview { display: block; width: calc(100% - 36px); max-height: min(72vh, 900px); object-fit: contain; margin: 18px; border-radius: 14px; background: var(--background); border: 1px solid var(--border); }
 .receipt-dialog .form-note { margin: 0 18px 18px; }
 .form-note { color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
+.receipt-review-note { margin-top: 14px; color: var(--warning); background: rgba(255,176,32,.08); border: 1px solid rgba(255,176,32,.28); border-radius: 12px; padding: 10px 12px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 18px; }
 .split-actions { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; }
 .danger-button { color: var(--expense); border-color: rgba(255,92,99,.38); }

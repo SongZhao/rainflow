@@ -221,7 +221,7 @@ It intentionally excludes split transactions, advanced reports, CSV import, reco
 - Attachment integrity dashboard.
 - Accessibility review.
 - Production email delivery and templates.
-- Deferred TODO: browser-side receipt OCR for the Mac web interface. Web receipt import should eventually prefill merchant, amount, date, and likely line items, but the alpha keeps this manual until OCR quality, privacy behavior, and incorrect-amount handling are validated.
+- Deferred TODO: browser-side or server-side receipt OCR for the phone and Mac web interfaces. Web receipt import should eventually prefill merchant, amount, receipt date, and likely line items, but the alpha keeps this manual until OCR quality, privacy behavior, and incorrect-amount handling are validated.
 
 ### Exit criteria
 

@@ -70,6 +70,12 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
     setMode("form");
   }
 
+  function clearReceipt() {
+    setReceipt(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
+  }
+
   async function save(event: FormEvent) {
     event.preventDefault();
     const parsed = Math.round(Number(amount) * 100);
@@ -111,7 +117,10 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
           <div className="capture-menu">
             <CaptureOption icon={<Camera size={21} />} title="Take photo" description="Capture a receipt" onClick={() => cameraInputRef.current?.click()} />
             <CaptureOption icon={<FileImage size={21} />} title="Choose from library" description="Select a receipt image" onClick={() => fileInputRef.current?.click()} />
-            <CaptureOption icon={<PenLine size={21} />} title="Add manually" description="Enter without a receipt" onClick={() => setMode("form")} />
+            <CaptureOption icon={<PenLine size={21} />} title="Add manually" description="Enter without a receipt" onClick={() => {
+              clearReceipt();
+              setMode("form");
+            }} />
             <input ref={fileInputRef} hidden type="file" accept="image/*" onChange={selectFile} />
             <input ref={cameraInputRef} hidden type="file" accept="image/*" capture="environment" onChange={selectFile} />
           </div>
@@ -136,7 +145,7 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
                 <div className="money-input"><span>$</span><input required inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.00" autoFocus /></div>
               </label>
               <label className="field">
-                <span>Date</span>
+                <span>{receipt ? "Receipt date" : "Date"}</span>
                 <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
               </label>
               <label className="field">
@@ -165,11 +174,19 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
               <div className="receipt-preview">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={previewUrl} alt="Selected receipt preview" />
-                <div><strong>{receipt?.name}</strong><span>This receipt will be stored privately with the transaction.</span></div>
+                <div>
+                  <strong>{receipt?.name}</strong>
+                  <span>This receipt will be stored privately with the transaction.</span>
+                  <button className="inline-link" type="button" onClick={clearReceipt}>Remove receipt</button>
+                </div>
               </div>
             ) : null}
 
-            <p className="form-note">This saves to the same Supabase ledger as the iPhone app. Receipt files are uploaded to private Rainflow storage and linked to the transaction.</p>
+            {receipt ? (
+              <p className="form-note receipt-review-note">Web OCR is not enabled yet, so Rainflow will not guess the amount, merchant, receipt date, or line items. Enter the receipt values manually; the image will still be attached.</p>
+            ) : (
+              <p className="form-note">This saves to the same Supabase ledger as the iPhone app.</p>
+            )}
             {saveError || errorMessage ? <p className="auth-error">{saveError ?? errorMessage}</p> : null}
             <div className="dialog-actions">
               <button className="secondary-button" type="button" onClick={() => setMode("menu")}>Back</button>
