@@ -580,11 +580,6 @@ private struct LedgerDetailView: View {
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(LedgerCalendar.isToday(day.date) ? RainflowColor.brandAccent : RainflowColor.textPrimary)
                 Spacer()
-                if hasTransactions {
-                    Circle()
-                        .fill(day.netMinorUnits >= 0 ? RainflowColor.income : RainflowColor.expense)
-                        .frame(width: 5, height: 5)
-                }
             }
 
             Spacer(minLength: 0)

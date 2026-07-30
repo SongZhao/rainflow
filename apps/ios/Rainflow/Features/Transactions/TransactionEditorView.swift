@@ -13,6 +13,8 @@ struct TransactionEditorView: View {
     @State private var receiptError: String?
     @State private var receiptPreview: ReceiptPreview?
     @State private var isReceiptLoading = false
+    @State private var isCheckingForRemoteReceipt = false
+    @State private var didCheckForRemoteReceipt = false
     @State private var isDeleteConfirmationPresented = false
 
     private var currency: CurrencyCode { ledgerStore.currency }
@@ -102,6 +104,8 @@ struct TransactionEditorView: View {
 
                     if let attachment = ledgerStore.activeReceiptAttachment(for: transaction.id) {
                         receiptCard(attachment)
+                    } else if isCheckingForRemoteReceipt {
+                        receiptCheckingCard
                     }
 
                     if let saveError {
@@ -204,6 +208,9 @@ struct TransactionEditorView: View {
             }
         }
         .onAppear(perform: loadDraft)
+        .task {
+            await refreshReceiptManifestIfNeeded()
+        }
         .onChange(of: amountText) { _, value in
             draft.amountMinorUnits = parseMinorUnits(value)
         }
@@ -339,6 +346,34 @@ struct TransactionEditorView: View {
                 .disabled(isReceiptLoading)
             }
         }
+    }
+
+    private var receiptCheckingCard: some View {
+        FinanceCard {
+            HStack(spacing: 12) {
+                ProgressView()
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Checking for receipt")
+                        .font(.headline)
+                    Text("Rainflow is refreshing attachments added from another device.")
+                        .font(.caption)
+                        .foregroundStyle(RainflowColor.textSecondary)
+                }
+                Spacer()
+            }
+        }
+    }
+
+    @MainActor
+    private func refreshReceiptManifestIfNeeded() async {
+        guard !didCheckForRemoteReceipt else { return }
+        guard ledgerStore.activeReceiptAttachment(for: transaction.id) == nil else { return }
+
+        didCheckForRemoteReceipt = true
+        isCheckingForRemoteReceipt = true
+        defer { isCheckingForRemoteReceipt = false }
+
+        await ledgerStore.refresh()
     }
 
     @MainActor
