@@ -4,6 +4,13 @@
 !.env.example
 node_modules/
 .next/
+.open-next/
+playwright-report/
+test-results/
+apps/web/.open-next/
+apps/web/playwright-report/
+apps/web/test-results/
+apps/web/tests/e2e/.auth/
 apps/ios/*.xcodeproj/
 apps/ios/*.xcworkspace/
 packages/**/.build/

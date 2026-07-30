@@ -19,6 +19,51 @@ NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 ```
 
+## Test
+
+Run the phone-web smoke tests before pushing changes:
+
+```bash
+npm run test:e2e:phone
+```
+
+The default Playwright run starts the web app on `127.0.0.1:3210` with safe
+dummy Supabase public settings, then verifies the phone-sized signed-out shell.
+
+For signed-in ledger checks, save a browser login state after manually signing
+in once, then run:
+
+```bash
+E2E_AUTH_STATE=tests/e2e/.auth/rainflow.json npm run test:e2e:phone
+```
+
+Keep saved auth state files out of Git.
+
+## Cloudflare deployment
+
+The web app deploys to Cloudflare Workers through OpenNext.
+
+Local commands:
+
+```bash
+npm run cf:build
+npm run cf:preview
+npm run cf:deploy
+```
+
+GitHub Actions runs build and Playwright on pull requests and pushes. Pushes to
+`main` deploy to Cloudflare when these repository secrets are configured:
+
+```text
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+CLOUDFLARE_ACCOUNT_ID
+CLOUDFLARE_API_TOKEN
+```
+
+Use a Cloudflare API token with permission to deploy Workers for the Rainflow
+account. Do not commit Cloudflare, Supabase, or OCR secrets.
+
 The prototype includes:
 
 - Email sign-in code authentication
