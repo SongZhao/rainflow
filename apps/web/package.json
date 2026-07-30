@@ -12,7 +12,8 @@
     "start": "next start",
     "lint": "eslint .",
     "test:e2e": "playwright test",
-    "test:e2e:phone": "playwright test --project=phone-web"
+    "test:e2e:phone": "playwright test --project=phone-web",
+    "test:e2e:save-auth": "node scripts/save-playwright-auth.mjs"
   },
   "engines": {
     "node": ">=22"

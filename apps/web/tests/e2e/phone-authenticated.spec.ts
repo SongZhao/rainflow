@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import fs from "node:fs";
 
-const authStatePath = process.env.E2E_AUTH_STATE;
+const authStatePath = process.env.E2E_AUTH_STATE ?? "tests/e2e/.auth/rainflow.json";
 
 test.skip(!authStatePath || !fs.existsSync(authStatePath), "Set E2E_AUTH_STATE to a saved Rainflow login state to run authenticated phone-web checks.");
 

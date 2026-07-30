@@ -31,13 +31,22 @@ The default Playwright run starts the web app on `127.0.0.1:3210` with safe
 dummy Supabase public settings, then verifies the phone-sized signed-out shell.
 
 For signed-in ledger checks, save a browser login state after manually signing
-in once, then run:
+in once:
 
 ```bash
-E2E_AUTH_STATE=tests/e2e/.auth/rainflow.json npm run test:e2e:phone
+npm run test:e2e:save-auth
+npm run test:e2e:phone
 ```
 
-Keep saved auth state files out of Git.
+The saved state defaults to `tests/e2e/.auth/rainflow.json`. Keep saved auth
+state files out of Git because they contain session cookies.
+
+To save a different state file:
+
+```bash
+E2E_AUTH_STATE=tests/e2e/.auth/another-user.json npm run test:e2e:save-auth
+E2E_AUTH_STATE=tests/e2e/.auth/another-user.json npm run test:e2e:phone
+```
 
 ## Cloudflare deployment
 
@@ -63,6 +72,17 @@ CLOUDFLARE_API_TOKEN
 
 Use a Cloudflare API token with permission to deploy Workers for the Rainflow
 account. Do not commit Cloudflare, Supabase, or OCR secrets.
+
+After installing and authenticating GitHub CLI, secrets can also be set from
+Terminal. Each command opens a secure prompt and does not echo the value:
+
+```bash
+gh auth login
+gh secret set NEXT_PUBLIC_SUPABASE_URL --repo SongZhao/rainflow
+gh secret set NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY --repo SongZhao/rainflow
+gh secret set CLOUDFLARE_ACCOUNT_ID --repo SongZhao/rainflow
+gh secret set CLOUDFLARE_API_TOKEN --repo SongZhao/rainflow
+```
 
 The prototype includes:
 
