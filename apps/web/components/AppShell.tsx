@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   Bell,
+  BookOpen,
   Camera,
   ChevronDown,
   FileImage,
@@ -23,9 +24,17 @@ import { useLedger } from "./LedgerProvider";
 
 const navigation = [
   { href: "/dashboard", label: "Dashboard", icon: Gauge },
+  { href: "/ledgers", label: "Ledgers", icon: BookOpen },
   { href: "/accounts", label: "Accounts", icon: Landmark },
   { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/attachments", label: "Attachments", icon: FileImage },
+];
+
+const phoneNavigation = [
+  { href: "/dashboard", label: "Home", icon: Gauge },
+  { href: "/ledgers", label: "Ledgers", icon: BookOpen },
+  { href: "/accounts", label: "Accounts", icon: Landmark },
+  { href: "/reports", label: "Reports", icon: BarChart3 },
 ];
 
 const secondary = [
@@ -82,7 +91,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Link
               key={href}
               href={href}
-              className={`nav-link ${pathname === href ? "active" : ""}`}
+              className={`nav-link ${isActivePath(pathname, href) ? "active" : ""}`}
               onClick={() => setSidebarOpen(false)}
             >
               <Icon size={18} />
@@ -170,6 +179,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <button className="floating-capture" type="button" onClick={() => setCaptureOpen(true)} aria-label="Capture receipt or add transaction">
         <Camera size={24} />
       </button>
+
+      <nav className="mobile-tabbar" aria-label="Phone navigation">
+        {phoneNavigation.slice(0, 2).map(({ href, label, icon: Icon }) => (
+          <Link key={href} href={href} className={`mobile-tab-link ${isActivePath(pathname, href) ? "active" : ""}`}>
+            <Icon size={20} aria-hidden="true" />
+            <span>{label}</span>
+          </Link>
+        ))}
+        <button className="mobile-tab-link mobile-tab-capture" type="button" onClick={() => setCaptureOpen(true)} aria-label="Capture receipt or add transaction">
+          <span className="mobile-capture-pill"><Camera size={24} aria-hidden="true" /></span>
+          <span>Capture</span>
+        </button>
+        {phoneNavigation.slice(2).map(({ href, label, icon: Icon }) => (
+          <Link key={href} href={href} className={`mobile-tab-link ${isActivePath(pathname, href) ? "active" : ""}`}>
+            <Icon size={20} aria-hidden="true" />
+            <span>{label}</span>
+          </Link>
+        ))}
+      </nav>
 
       <CaptureDialog open={captureOpen} onClose={() => setCaptureOpen(false)} />
       <CreateLedgerDialog
@@ -400,4 +428,8 @@ function AuthScreen({
 function initials(email?: string) {
   if (!email) return "RF";
   return email.slice(0, 2).toUpperCase();
+}
+
+function isActivePath(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(`${href}/`);
 }

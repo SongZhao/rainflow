@@ -27,7 +27,7 @@ export default function LedgerDetailPage() {
   if (requestedLedger && ledger?.id !== requestedLedger.id) {
     return (
       <div className="page-stack">
-        <Link className="inline-link" href="/accounts"><ArrowLeft size={14} /> Back to accounts</Link>
+        <Link className="inline-link" href="/ledgers"><ArrowLeft size={14} /> Back to ledgers</Link>
         <section className="card detail-card">
           <div className="empty-state"><h3>Loading ledger</h3><p>Rainflow is switching to {requestedLedger.name}.</p></div>
         </section>
@@ -38,7 +38,7 @@ export default function LedgerDetailPage() {
   if (!ledger || ledger.id !== params.id) {
     return (
       <div className="page-stack">
-        <Link className="inline-link" href="/accounts"><ArrowLeft size={14} /> Back to accounts</Link>
+        <Link className="inline-link" href="/ledgers"><ArrowLeft size={14} /> Back to ledgers</Link>
         <section className="card detail-card">
           <div className="empty-state"><h3>Ledger not found</h3><p>Refresh the ledger or return to accounts.</p></div>
         </section>
@@ -54,7 +54,7 @@ export default function LedgerDetailPage() {
           <h1>{ledger.name}</h1>
           <p>{ledger.currencyCode} · {accounts.length} account{accounts.length === 1 ? "" : "s"} · {transactions.length} transaction{transactions.length === 1 ? "" : "s"}</p>
         </div>
-        <Link className="secondary-button" href="/accounts"><ArrowLeft size={17} />Back</Link>
+        <Link className="secondary-button" href="/ledgers"><ArrowLeft size={17} />Back</Link>
       </div>
 
       <section className="detail-layout">
