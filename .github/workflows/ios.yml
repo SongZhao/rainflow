@@ -1,0 +1,46 @@
+name: iOS build
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select latest stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Static and domain checks
+        run: ./scripts/check.sh
+      - name: Create CI configuration
+        run: |
+          cat > apps/ios/Config/Local.xcconfig <<'CONFIG'
+          SUPABASE_URL = https:/$()/example.supabase.co
+          SUPABASE_PUBLISHABLE_KEY = sb_publishable_ci_placeholder_abcdefghijklmnopqrstuvwxyz
+          DEVELOPMENT_TEAM =
+          PRODUCT_BUNDLE_IDENTIFIER = com.rainflow.ci
+          CONFIG
+      - name: Generate project
+        working-directory: apps/ios
+        run: xcodegen generate
+      - name: Resolve packages
+        working-directory: apps/ios
+        run: xcodebuild -resolvePackageDependencies -project Rainflow.xcodeproj -scheme Rainflow
+      - name: Build for iPhone Simulator
+        working-directory: apps/ios
+        run: |
+          xcodebuild \
+            -project Rainflow.xcodeproj \
+            -scheme Rainflow \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            build

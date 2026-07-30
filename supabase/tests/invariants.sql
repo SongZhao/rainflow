@@ -1,0 +1,9 @@
+-- Manual development checks to convert to pgTAP when a Supabase test project is available.
+-- 1. create_transaction rejects fewer than two postings.
+-- 2. create_transaction rejects a nonzero posting sum.
+-- 3. create_transaction rejects a currency different from the ledger.
+-- 4. create_transaction rejects archived or cross-ledger accounts.
+-- 5. retrying an idempotency key returns the original result.
+-- 6. update_transaction rejects a stale expected revision and preserves the old postings.
+-- 7. soft delete excludes the transaction from active report queries.
+-- 8. restore revalidates all referenced accounts before clearing deleted_at.

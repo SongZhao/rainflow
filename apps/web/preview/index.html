@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rainflow Web Preview</title>
+  <link rel="stylesheet" href="../app/globals.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand-lockup"><span class="brand-drop">◆</span><span>Rainflow</span></div>
+      <nav class="nav-list">
+        <a class="nav-link active" href="#">⌂ <span>Dashboard</span></a>
+        <a class="nav-link" href="#">▱ <span>Accounts</span></a>
+        <a class="nav-link" href="#">☷ <span>Transactions</span></a>
+        <a class="nav-link" href="#">◔ <span>Reports</span></a>
+        <a class="nav-link" href="#">▧ <span>Attachments</span></a>
+      </nav>
+      <div class="nav-divider"></div>
+      <nav class="nav-list">
+        <button class="nav-link nav-button">◷ <span>Recurring</span></button>
+        <button class="nav-link nav-button">▤ <span>Budget</span><span class="nav-badge">Later</span></button>
+        <button class="nav-link nav-button">⚙ <span>Settings</span></button>
+      </nav>
+      <div class="sidebar-user"><div class="avatar">SZ</div><div><strong>Rainflow User</strong><span>user@example.com</span></div><span>↪</span></div>
+    </aside>
+    <main class="main-area">
+      <header class="topbar"><button class="ledger-switcher">Personal Ledger⌄</button><div class="topbar-actions"><button class="icon-button">♢</button><button id="add" class="primary-button">＋ Add transaction</button></div></header>
+      <div class="content-area">
+        <div class="page-stack">
+          <div class="page-heading"><div><span class="eyebrow">Rainflow</span><h1>Dashboard</h1><p>Your financial position at a glance.</p></div><button class="icon-button">•••</button></div>
+          <section class="metric-grid">
+            <div class="card metric-card"><span class="eyebrow">Net Worth</span><strong class="card-hero-value">$24,250.75</strong><span class="positive">+$1,250.50 (5.44%) <small>vs. last month</small></span><svg class="sparkline" viewBox="0 0 280 90"><polyline points="0,75 25,62 50,67 75,48 100,55 125,39 150,44 175,26 200,32 225,15 250,20 280,4"></polyline></svg></div>
+            <div class="card cash-flow-card"><div class="card-header"><div><h2>Cash Flow</h2><span>This month</span></div></div><div class="metric-row"><span>Income</span><strong class="positive">$5,401.02</strong></div><div class="metric-row"><span>Expenses</span><strong class="negative">-$3,246.50</strong></div><div class="metric-row"><span>Net</span><strong class="positive">$2,154.52</strong></div><div class="balance-bar"><span style="width:63%"></span><i></i></div></div>
+            <div class="card accounts-summary-card"><div class="card-header"><div><h2>Accounts</h2><span>Total balance</span></div></div><strong class="card-hero-value">$24,250.75</strong><div class="metric-row"><span>Cash</span><strong>$13,535.18</strong></div><div class="metric-row"><span>Investments</span><strong>$6,250.12</strong></div><div class="metric-row"><span>Credit Cards</span><strong class="negative">-$1,934.55</strong></div><div class="metric-row"><span>Loans</span><strong class="negative">-$2,000.00</strong></div><a class="card-link">View all accounts ›</a></div>
+            <div class="card spending-card"><div class="card-header"><div><h2>Spending</h2><span>This month</span></div></div><div class="donut-wrap"><div class="donut"><div><strong>$3,246.50</strong><span>Total</span></div></div><div class="donut-legend"><span><i class="legend-blue"></i>Housing 37%</span><span><i class="legend-amber"></i>Food 21%</span><span><i class="legend-teal"></i>Transport 17%</span><span><i class="legend-red"></i>Other 25%</span></div></div><a class="card-link">View full report ›</a></div>
+          </section>
+          <section class="dashboard-lower-grid">
+            <div class="card transaction-card"><div class="card-header"><div><h2>Recent Transactions</h2><span>Most recent</span></div></div><div class="transaction-table compact"><div class="transaction-head"><span>Date</span><span>Payee</span><span>Category</span><span>Account</span><span>Amount</span></div><div class="transaction-line"><span>Jul 26, 2026</span><strong>SoFi</strong><span>Transfer</span><span>Cash</span><b class="positive">+$0.02</b></div><div class="transaction-line"><span>Jul 25, 2026</span><strong>Safeway</strong><span>Groceries</span><span>SoFi Checking</span><b class="negative">-$78.23</b></div><div class="transaction-line"><span>Jul 24, 2026</span><strong>Shell</strong><span>Transportation</span><span>SoFi Checking</span><b class="negative">-$46.31</b></div><div class="transaction-line"><span>Jul 23, 2026</span><strong>Venmo</strong><span>Transfer</span><span>SoFi Checking</span><b>$120.00</b></div></div><a class="card-link">View all transactions ›</a></div>
+            <div class="card cash-flow-chart-card"><div class="card-header"><div><h2>Cash Flow</h2><span>Mar–Jul 2026</span></div></div><div class="cash-chart"><div class="chart-grid-lines"><span></span><span></span><span></span><span></span></div><div class="bar-groups"><div class="bar-group"><div class="bar-pair"><i class="income-bar" style="height:145px"></i><i class="expense-bar" style="height:55px"></i></div><span>Mar</span></div><div class="bar-group"><div class="bar-pair"><i class="income-bar" style="height:85px"></i><i class="expense-bar" style="height:110px"></i></div><span>Apr</span></div><div class="bar-group"><div class="bar-pair"><i class="income-bar" style="height:70px"></i><i class="expense-bar" style="height:60px"></i></div><span>May</span></div><div class="bar-group"><div class="bar-pair"><i class="income-bar" style="height:65px"></i><i class="expense-bar" style="height:68px"></i></div><span>Jun</span></div><div class="bar-group"><div class="bar-pair"><i class="income-bar" style="height:155px"></i><i class="expense-bar" style="height:95px"></i></div><span>Jul</span></div></div><div class="chart-legend"><span><i class="income-dot"></i>Income</span><span><i class="expense-dot"></i>Expenses</span></div></div></div>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+  <div id="modal" class="dialog-backdrop" style="display:none"><section class="dialog"><div class="dialog-header"><div><span class="eyebrow">Primary action</span><h2>Add transaction</h2></div><button id="close" class="icon-button">×</button></div><div class="capture-menu"><button class="capture-option"><span class="capture-option-icon">📷</span><span><strong>Take photo</strong><small>Capture a receipt</small></span><span>›</span></button><button class="capture-option"><span class="capture-option-icon">▧</span><span><strong>Choose from library</strong><small>Select a receipt image</small></span><span>›</span></button><button class="capture-option"><span class="capture-option-icon">✎</span><span><strong>Add manually</strong><small>Enter without a receipt</small></span><span>›</span></button></div></section></div>
+  <script>const modal=document.getElementById('modal');document.getElementById('add').onclick=()=>modal.style.display='grid';document.getElementById('close').onclick=()=>modal.style.display='none';modal.onclick=e=>{if(e.target===modal)modal.style.display='none'};</script>
+</body>
+</html>

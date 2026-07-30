@@ -1,0 +1,76 @@
+name: Rainflow
+options:
+  bundleIdPrefix: com.rainflow
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+configs:
+  Debug: debug
+  Release: release
+packages:
+  RainflowDomain:
+    path: ../../packages/RainflowDomain
+  Supabase:
+    url: https://github.com/supabase/supabase-swift.git
+    exactVersion: 2.53.0
+  GRDB:
+    url: https://github.com/groue/GRDB.swift.git
+    exactVersion: 7.11.1
+settings:
+  base:
+    SWIFT_VERSION: 6.0
+    IPHONEOS_DEPLOYMENT_TARGET: 26.0
+    TARGETED_DEVICE_FAMILY: 1
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+targets:
+  Rainflow:
+    type: application
+    platform: iOS
+    sources:
+      - path: Rainflow
+    info:
+      path: Rainflow/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: Rainflow
+        ITSAppUsesNonExemptEncryption: false
+        SUPABASE_URL: "$(SUPABASE_URL)"
+        SUPABASE_PUBLISHABLE_KEY: "$(SUPABASE_PUBLISHABLE_KEY)"
+        NSCameraUsageDescription: "Rainflow uses the camera to capture receipt photos for transaction review."
+        NSPhotoLibraryUsageDescription: "Rainflow lets you choose receipt images from your photo library."
+        UILaunchScreen: {}
+    configFiles:
+      Debug: Config/Debug.xcconfig
+      Release: Config/Release.xcconfig
+    dependencies:
+      - package: RainflowDomain
+      - package: Supabase
+      - package: GRDB
+    settings:
+      base:
+        PRODUCT_NAME: Rainflow
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        GENERATE_INFOPLIST_FILE: NO
+        SWIFT_STRICT_CONCURRENCY: complete
+  RainflowTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: RainflowTests
+    dependencies:
+      - target: Rainflow
+      - package: RainflowDomain
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  Rainflow:
+    build:
+      targets:
+        Rainflow: all
+        RainflowTests: [test]
+    test:
+      gatherCoverageData: true
+      targets:
+        - name: RainflowTests

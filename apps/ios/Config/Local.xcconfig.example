@@ -1,0 +1,6 @@
+// Copy this file to Local.xcconfig. Local.xcconfig is gitignored.
+// The $() expression preserves // in xcconfig values.
+SUPABASE_URL = https:/$()/YOUR_PROJECT_REF.supabase.co
+SUPABASE_PUBLISHABLE_KEY = sb_publishable_REPLACE_ME
+DEVELOPMENT_TEAM = REPLACE_WITH_APPLE_TEAM_ID
+PRODUCT_BUNDLE_IDENTIFIER = com.yourcompany.rainflow

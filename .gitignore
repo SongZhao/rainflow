@@ -1,0 +1,17 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+node_modules/
+.next/
+apps/ios/*.xcodeproj/
+apps/ios/*.xcworkspace/
+packages/**/.build/
+DerivedData/
+*.xcuserstate
+apps/ios/Config/Local.xcconfig
+supabase/.temp/
+.swiftpm/
+build/
+*.xcarchive/
+*.ipa
