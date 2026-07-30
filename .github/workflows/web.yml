@@ -45,6 +45,10 @@ jobs:
       - name: Run Playwright
         run: npm run test:e2e
 
+      - name: Build Cloudflare bundle
+        if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        run: npm run cf:build
+
       - name: Deploy to Cloudflare Workers
         if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
         env:
