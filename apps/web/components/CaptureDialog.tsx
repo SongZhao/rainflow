@@ -107,7 +107,7 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
       setOcrStatus(result.status === "ok" ? "applied" : result.status === "not_configured" ? "unavailable" : "needsReview");
     } catch (error) {
       setOcrStatus("needsReview");
-      setOcrWarnings([error instanceof Error ? error.message : "Receipt OCR failed. Enter the values manually."]);
+      setOcrWarnings(await receiptErrorWarnings(error));
     }
   }
 
@@ -164,7 +164,7 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
         {mode === "form" ? (
           <form className="transaction-form" onSubmit={save}>
             <div className="segmented-control" aria-label="Transaction type">
-                  {(["expense", "income", "transfer"] as TransactionKind[]).map((item) => (
+              {(["expense", "income", "transfer"] as TransactionKind[]).map((item) => (
                 <button key={item} type="button" className={kind === item ? "active" : ""} onClick={() => {
                   setKind(item);
                   setCategoryID("");
@@ -331,4 +331,45 @@ function ReceiptWarnings({ warnings }: { warnings: string[] }) {
       {warnings.slice(0, 4).map((warning) => <li key={warning}>{warning}</li>)}
     </ul>
   );
+}
+
+async function receiptErrorWarnings(error: unknown) {
+  const context = typeof error === "object" && error !== null && "context" in error
+    ? (error as { context?: unknown }).context
+    : null;
+
+  if (context instanceof Response) {
+    const fallback = functionResponseFallback(context);
+    try {
+      const payload = await context.clone().json() as {
+        warnings?: unknown;
+        message?: unknown;
+        error?: unknown;
+        requestID?: unknown;
+      };
+      const warnings = Array.isArray(payload.warnings)
+        ? payload.warnings.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        : [];
+      const message = typeof payload.message === "string"
+        ? payload.message
+        : typeof payload.error === "string"
+          ? payload.error
+          : null;
+      const requestID = typeof payload.requestID === "string" ? payload.requestID : null;
+      const details = warnings.length > 0 ? warnings : message ? [message] : [fallback];
+      return requestID ? [...details, `Request ID: ${requestID}`] : details;
+    } catch {
+      const text = (await context.text().catch(() => "")).trim();
+      return [text ? text.slice(0, 300) : fallback];
+    }
+  }
+
+  return [error instanceof Error ? error.message : "Receipt OCR failed. Enter the values manually."];
+}
+
+function functionResponseFallback(response: Response) {
+  const code = response.headers.get("sb-error-code");
+  return code
+    ? `Receipt OCR request failed (${response.status}, ${code}).`
+    : `Receipt OCR request failed (${response.status}).`;
 }
