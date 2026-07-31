@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpen, ChevronRight, Plus, Users } from "lucide-react";
+import { BookOpen, Plus, Users } from "lucide-react";
 import { FormEvent, useMemo, useState } from "react";
 import { useLedger } from "@/components/LedgerProvider";
 import { formatMoney } from "@/lib/format";
@@ -9,16 +9,18 @@ import { formatMoney } from "@/lib/format";
 export default function LedgersPage() {
   const { ledger, ledgers, accounts, transactions, createLedger, isWorking } = useLedger();
   const [createOpen, setCreateOpen] = useState(false);
-  const total = accounts.reduce((sum, account) => sum + account.balanceMinorUnits, 0);
+  const netWorth = accounts
+    .filter((account) => account.type === "asset" || account.type === "liability")
+    .reduce((sum, account) => sum + account.balanceMinorUnits, 0);
   const activeLedgerTransactionCount = transactions.length;
   const ledgerSummaries = useMemo(() => {
     return ledgers.map((item) => ({
       ledger: item,
       isActive: item.id === ledger?.id,
-      balance: item.id === ledger?.id ? total : null,
+      balance: item.id === ledger?.id ? netWorth : null,
       transactions: item.id === ledger?.id ? activeLedgerTransactionCount : null,
     }));
-  }, [activeLedgerTransactionCount, ledger?.id, ledgers, total]);
+  }, [activeLedgerTransactionCount, ledger?.id, ledgers, netWorth]);
 
   return (
     <div className="page-stack">
@@ -42,7 +44,8 @@ export default function LedgersPage() {
             <small>{ledger.kind === "shared" ? "Shared ledger" : "Personal ledger"} · {ledger.currencyCode}</small>
           </div>
           <div>
-            <strong className={total < 0 ? "negative" : ""}>{formatMoney(total)}</strong>
+            <span className="eyebrow">Net worth</span>
+            <strong className={netWorth < 0 ? "negative" : ""}>{formatMoney(netWorth)}</strong>
             <p>{accounts.length} account{accounts.length === 1 ? "" : "s"} · {transactions.length} transaction{transactions.length === 1 ? "" : "s"}</p>
           </div>
         </Link>
@@ -70,7 +73,6 @@ export default function LedgersPage() {
                   <small>Switch to view balance and activity</small>
                 </>
               )}
-              <ChevronRight size={18} aria-hidden="true" />
             </div>
           </Link>
         ))}
