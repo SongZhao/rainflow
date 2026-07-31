@@ -1,22 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpen, ChevronRight, Plus } from "lucide-react";
+import { BookOpen, Plus } from "lucide-react";
 import { formatMoney } from "@/lib/format";
 import { useLedger } from "@/components/LedgerProvider";
 
 export default function AccountsPage() {
   const { accounts, ledger, ledgers, transactions } = useLedger();
   const groups = Array.from(new Set(accounts.map((account) => account.group)));
-  const total = accounts.reduce((sum, account) => sum + account.balanceMinorUnits, 0);
+  const netWorth = accounts
+    .filter((account) => account.type === "asset" || account.type === "liability")
+    .reduce((sum, account) => sum + account.balanceMinorUnits, 0);
 
   return (
     <div className="page-stack">
       <div className="page-heading"><div><span className="eyebrow">Portfolio</span><h1>Accounts</h1><p>Balances derived from the posting journal.</p></div><button className="primary-button" type="button"><Plus size={18} />Add account</button></div>
 
       <section className="account-hero card">
-        <div><span className="eyebrow">All Accounts</span><strong>{formatMoney(total)}</strong><span className="positive">+$1,250.50 (5.44%) <small>vs. last month</small></span></div>
-        <div className="range-tabs" aria-label="Account trend range"><button className="active">1M</button><button>3M</button><button>6M</button><button>YTD</button><button>1Y</button><button>All</button></div>
+        <div>
+          <span className="eyebrow">Net worth</span>
+          <strong className={netWorth < 0 ? "negative" : undefined}>{formatMoney(netWorth)}</strong>
+          <span><small>Assets plus liabilities in the current ledger. Historical change will appear after trend data is implemented.</small></span>
+        </div>
       </section>
 
       <section className="card ledger-card">
@@ -28,7 +33,7 @@ export default function AccountsPage() {
           <Link className="account-row" href={`/ledgers/${item.id}`} key={item.id}>
             <span className="account-avatar"><BookOpen size={16} /></span>
             <span><strong>{item.name}</strong><small>{item.kind === "shared" ? "Shared" : "Personal"} · {item.role}</small></span>
-            <span className="account-balance">{item.id === ledger?.id ? formatMoney(total) : item.currencyCode}<small>{item.id === ledger?.id ? `${transactions.length} transactions` : "Open ledger"} <ChevronRight size={13} /></small></span>
+            <span className="account-balance">{item.id === ledger?.id ? formatMoney(netWorth) : item.currencyCode}<small>{item.id === ledger?.id ? `${transactions.length} transactions` : "Open ledger"}</small></span>
           </Link>
         )) : (
           <div className="empty-state compact-empty"><h3>No ledger yet</h3><p>Create a ledger to view its details.</p></div>
@@ -45,7 +50,7 @@ export default function AccountsPage() {
               {groupAccounts.map((account) => <Link className="account-row" href={`/accounts/${account.id}`} key={account.id}>
                 <span className="account-avatar">{account.name.slice(0, 2).toUpperCase()}</span>
                 <span><strong>{account.name}</strong><small>{account.subtype}</small></span>
-                <span className={account.balanceMinorUnits < 0 ? "negative account-balance" : "account-balance"}>{formatMoney(account.balanceMinorUnits)}<small>Open account <ChevronRight size={13} /></small></span>
+                <span className={account.balanceMinorUnits < 0 ? "negative account-balance" : "account-balance"}>{formatMoney(account.balanceMinorUnits)}<small>Open account</small></span>
               </Link>)}
             </div>
           </article>;
