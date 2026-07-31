@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, ChevronRight, MoreHorizontal } from "lucide-react";
+import { ArrowUpRight, ChevronRight } from "lucide-react";
 import { formatDate, formatMoney } from "@/lib/format";
 import type { Transaction } from "@/lib/types";
 import { useLedger } from "@/components/LedgerProvider";
@@ -103,11 +103,11 @@ export default function DashboardPage() {
 }
 
 function PageHeading({ title, subtitle }: { title: string; subtitle: string }) {
-  return <div className="page-heading"><div><span className="eyebrow">Rainflow</span><h1>{title}</h1><p>{subtitle}</p></div><button className="icon-button" type="button" aria-label="Dashboard options"><MoreHorizontal /></button></div>;
+  return <div className="page-heading"><div><span className="eyebrow">Rainflow</span><h1>{title}</h1><p>{subtitle}</p></div></div>;
 }
 
 function CardHeader({ title, meta }: { title: string; meta: string }) {
-  return <div className="card-header"><div><h2>{title}</h2><span>{meta}</span></div><button className="icon-button subtle" type="button" aria-label={`${title} options`}><MoreHorizontal size={18} /></button></div>;
+  return <div className="card-header"><div><h2>{title}</h2><span>{meta}</span></div></div>;
 }
 
 function MetricCard({ title, value, description, children }: { title: string; value: string; description: string; children?: React.ReactNode }) {
