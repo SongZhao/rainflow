@@ -43,3 +43,31 @@ Deno.test("merged multi-photo receipt deduplicates overlapping text", () => {
 
   assertEquals(merged, "Rainflow Market\nApples 3.99\nSubtotal 3.99\nTax 0.40\nTotal 4.39");
 });
+
+Deno.test("Ace Hardware receipt uses the tax-inclusive total and real merchant", () => {
+  const parsed = parseReceiptText(`
+    THANK YOU FOR SHOPPING AT
+    Ag Supply Ace Hardware SL
+    (425) 224-4273
+    Silver Lake Ace, Washington
+    Store Number 18471
+    08/04/26 6:10PM RYAB 831 SALE
+    4020052 1 EA $9.59 EA
+    CUPLING BRASS 5/8\"X3/8\"
+    $9.59
+    SUB-TOTAL:$ 9.59 TAX: $ .95
+    TOTAL: $ 10.54
+    BC AMT: $ 10.54
+    BK CARD#: XXXXXXXXXXXX1795
+    AUTH: 01025D AMT: $ 10.54
+    Bank card USD$ 10.54
+  `);
+
+  assertEquals(parsed.status, "ok");
+  assertEquals(parsed.fields.amountMinorUnits, 1054);
+  assertEquals(parsed.fields.merchant, "Ag Supply Ace Hardware SL");
+  assertEquals(parsed.fields.date, "2026-08-04");
+  assertEquals(parsed.fields.lineItems, [
+    { description: "CUPLING BRASS 5/8\"X3/8\"", amountMinorUnits: 959 },
+  ]);
+});
