@@ -73,8 +73,9 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
   }
 
   function selectFile(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files ?? []);
-    if (files.length === 0) return;
+    const selectedFiles = Array.from(event.target.files ?? []);
+    if (selectedFiles.length === 0) return;
+    const files = timestampReceiptFiles(selectedFiles, receipts);
     const nextReceipts = [...receipts, ...files];
     setReceipts(nextReceipts);
     setOcrStatus("reading");
@@ -331,6 +332,47 @@ function ReceiptWarnings({ warnings }: { warnings: string[] }) {
       {warnings.slice(0, 4).map((warning) => <li key={warning}>{warning}</li>)}
     </ul>
   );
+}
+
+function timestampReceiptFiles(files: File[], existingFiles: File[]) {
+  const usedNames = new Set(existingFiles.map((file) => file.name.toLowerCase()));
+  let timestamp = new Date();
+
+  return files.map((file) => {
+    let fileName = timestampReceiptFileName(file, timestamp);
+    while (usedNames.has(fileName.toLowerCase())) {
+      timestamp = new Date(timestamp.getTime() + 1000);
+      fileName = timestampReceiptFileName(file, timestamp);
+    }
+    usedNames.add(fileName.toLowerCase());
+    timestamp = new Date(timestamp.getTime() + 1000);
+
+    return new File([file], fileName, {
+      type: file.type,
+      lastModified: file.lastModified,
+    });
+  });
+}
+
+function timestampReceiptFileName(file: File, timestamp: Date) {
+  const digits = [
+    timestamp.getFullYear(),
+    String(timestamp.getMonth() + 1).padStart(2, "0"),
+    String(timestamp.getDate()).padStart(2, "0"),
+    String(timestamp.getHours()).padStart(2, "0"),
+    String(timestamp.getMinutes()).padStart(2, "0"),
+    String(timestamp.getSeconds()).padStart(2, "0"),
+  ].join("");
+  return `${digits}.${receiptExtension(file)}`;
+}
+
+function receiptExtension(file: File) {
+  const mimeType = file.type.toLowerCase();
+  const originalName = file.name.toLowerCase();
+  if (mimeType === "image/png" || originalName.endsWith(".png")) return "png";
+  if (mimeType === "image/heic" || originalName.endsWith(".heic")) return "heic";
+  if (mimeType === "image/heif" || originalName.endsWith(".heif")) return "heif";
+  return "jpg";
 }
 
 async function receiptErrorWarnings(error: unknown) {
