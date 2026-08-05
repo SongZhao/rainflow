@@ -225,16 +225,11 @@ function chooseAmount(lines: string[]) {
   const candidates: Array<{ amountMinorUnits: number; score: number; line: string }> = [];
   lines.forEach((line, index) => {
     if (isIgnoredAmountLine(line)) return;
-    for (const match of line.matchAll(/(?:[$€£]\s*)?((?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2})\b/g)) {
+    for (const match of line.matchAll(/(?:[$€£]\s*)?((?:(?:\d{1,3}(?:,\d{3})+|\d+)?\.\d{2}))\b/g)) {
       const amountMinorUnits = Math.round(Number(match[1].replace(/,/g, "")) * 100);
       if (!Number.isFinite(amountMinorUnits) || amountMinorUnits <= 0) continue;
-      let score = 0;
-      const lower = line.toLowerCase();
-      if (/[$€£]/.test(match[0])) score += 3;
-      if (/\b(grand total|transaction amount|amount charged|total charged|total|sale|paid|payment)\b/i.test(line)) score += 6;
-      if (/\b(subtotal|tax|tip|fee|discount|change|cashback)\b/i.test(line)) score -= 3;
+      let score = amountContextScore(line, match.index ?? 0, match[0]);
       if (index > lines.length * 0.55) score += 1;
-      if (lower === match[0].toLowerCase().trim()) score += 1;
       candidates.push({ amountMinorUnits, score, line });
     }
   });
@@ -243,6 +238,34 @@ function chooseAmount(lines: string[]) {
   const winner = candidates[0];
   if (!winner || winner.score < 2) return null;
   return winner;
+}
+
+function amountContextScore(line: string, amountIndex: number, matchedAmount: string) {
+  let score = /[$€£]/.test(matchedAmount) ? 3 : 0;
+  const prefix = line.slice(0, amountIndex).toLowerCase();
+  const contexts: Array<{ pattern: RegExp; score: number }> = [
+    { pattern: /\bgrand total\b/g, score: 18 },
+    { pattern: /\b(?:total due|amount due|amount charged|total charged|transaction amount)\b/g, score: 17 },
+    { pattern: /(?<!sub )(?<!sub-)\btotal\b/g, score: 15 },
+    { pattern: /\b(?:bc\s*)?amt\b/g, score: 12 },
+    { pattern: /\b(?:amount|paid|payment|tendered)\b/g, score: 10 },
+    { pattern: /\b(?:sub[- ]?total|tax|tip|fee|discount|change|cashback)\b/g, score: -12 },
+  ];
+
+  let nearestPosition = -1;
+  let nearestScore = 0;
+  for (const context of contexts) {
+    for (const label of prefix.matchAll(context.pattern)) {
+      const position = label.index ?? -1;
+      if (position >= nearestPosition) {
+        nearestPosition = position;
+        nearestScore = context.score;
+      }
+    }
+  }
+
+  score += nearestScore;
+  return score;
 }
 
 function chooseDate(lines: string[]) {
@@ -258,29 +281,75 @@ function chooseDate(lines: string[]) {
 }
 
 function chooseMerchant(lines: string[]) {
-  for (const line of lines.slice(0, 8)) {
-    if (line.length < 2 || line.length > 48) continue;
-    if (isIgnoredAmountLine(line) || extractDates(line).length > 0) continue;
-    if (/(transaction|details|receipt|invoice|sale|type|method|category|reference)/i.test(line)) continue;
-    if (/(?:[$€£]?\s*\d+\.\d{2})/.test(line)) continue;
-    return normalizeMerchant(line);
+  const topLines = lines.slice(0, 12);
+
+  for (let index = 0; index < topLines.length; index += 1) {
+    if (!/\b(?:thank you for (?:shopping|your purchase)(?: at)?|welcome to|purchased at|sold by)\b/i.test(topLines[index])) continue;
+    for (let candidateIndex = index + 1; candidateIndex < Math.min(index + 4, topLines.length); candidateIndex += 1) {
+      const candidate = topLines[candidateIndex];
+      if (isMerchantCandidate(candidate)) return normalizeMerchant(candidate);
+    }
   }
-  return undefined;
+
+  const candidates = topLines
+    .map((line, index) => ({
+      line,
+      score: 20 - index
+        + (/\b(?:hardware|supply|market|mart|store|pharmacy|cafe|coffee|restaurant|grocery|foods|auto|ace)\b/i.test(line) ? 4 : 0)
+        - (/,\s*[a-z]{2,}(?:\s|$)/i.test(line) ? 2 : 0),
+    }))
+    .filter((candidate) => isMerchantCandidate(candidate.line))
+    .sort((a, b) => b.score - a.score);
+
+  return candidates[0] ? normalizeMerchant(candidates[0].line) : undefined;
+}
+
+function isMerchantCandidate(line: string) {
+  if (line.length < 2 || line.length > 64) return false;
+  if (!/[a-z]/i.test(line)) return false;
+  if (isIgnoredAmountLine(line) || extractDates(line).length > 0) return false;
+  if (/(?:[$€£]?\s*(?:\d+)?\.\d{2})/.test(line)) return false;
+  if (/\b(?:thank you|shopping at|welcome|receipt|invoice|transaction|sale|type|method|category|reference|store number|customer|subtotal|total|tax|date|time|terminal|register|cashier|auth|approval|card|visa|mastercard|contactless)\b/i.test(line)) return false;
+  if (/https?:\/\/|www\.|\S+@\S+/i.test(line)) return false;
+  if (/^\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}$/.test(line)) return false;
+  if (/^[\d\s#*:/.,-]+$/.test(line)) return false;
+  return true;
 }
 
 function chooseLineItems(lines: string[]): ReceiptLineItem[] {
-  const summaryWords = /\b(total|subtotal|tax|tip|payment|paid|change|balance|reward|points|reference|card|auth)\b/i;
+  const summaryWords = /\b(?:grand total|total|sub[- ]?total|tax|tip|fee|discount|payment|paid|change|balance|reward|points|reference|card|auth|amt|amount|tender)\b/i;
   const items: ReceiptLineItem[] = [];
-  for (const line of lines) {
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
     if (summaryWords.test(line)) continue;
     const match = line.match(/(.{2,80}?)\s+[$€£]?\s*((?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2})\b/);
     if (!match) continue;
     const amountMinorUnits = Math.round(Number(match[2].replace(/,/g, "")) * 100);
     if (!Number.isFinite(amountMinorUnits) || amountMinorUnits <= 0) continue;
-    items.push({ description: match[1].trim(), amountMinorUnits });
+
+    let description = match[1].trim().replace(/^\d{5,}\s+/, "").trim();
+    const nextLine = lines[index + 1];
+    if (isQuantityOnlyDescription(description) && nextLine && isLineItemDescription(nextLine)) {
+      description = nextLine;
+    }
+    if (description.length < 2) continue;
+
+    items.push({ description, amountMinorUnits });
     if (items.length >= 12) break;
   }
   return items;
+}
+
+function isQuantityOnlyDescription(value: string) {
+  return /^(?:\d+\s*)?(?:ea|each|x)?$/i.test(value.trim());
+}
+
+function isLineItemDescription(line: string) {
+  if (line.length < 2 || line.length > 90) return false;
+  if (!/[a-z]/i.test(line)) return false;
+  if (/(?:[$€£]?\s*(?:\d+)?\.\d{2})/.test(line)) return false;
+  if (/\b(?:grand total|total|sub[- ]?total|tax|tip|fee|discount|payment|paid|change|balance|reference|card|auth|amt|amount)\b/i.test(line)) return false;
+  return true;
 }
 
 function isIgnoredAmountLine(line: string) {
