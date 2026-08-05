@@ -28,13 +28,14 @@ export default function DashboardPage() {
   const expenses = currentMonthTransactions
     .filter((item) => item.kind === "expense")
     .reduce((sum, item) => sum + Math.abs(item.amountMinorUnits), 0);
+  const netCashFlow = income - expenses;
   const assetTotal = accounts
     .filter((account) => account.type === "asset")
     .reduce((sum, account) => sum + account.balanceMinorUnits, 0);
   const liabilityTotal = accounts
     .filter((account) => account.type === "liability")
     .reduce((sum, account) => sum + account.balanceMinorUnits, 0);
-  const netWorth = assetTotal + liabilityTotal;
+  const recordedBalance = assetTotal + liabilityTotal;
   const monthlyCashFlow = buildMonthlyCashFlow(transactions);
   const spending = buildSpendingBreakdown(currentMonthTransactions);
   const monthLabel = new Intl.DateTimeFormat("en", { month: "long", year: "numeric" }).format(new Date());
@@ -42,36 +43,46 @@ export default function DashboardPage() {
 
   return (
     <div className="page-stack">
-      <PageHeading title="Dashboard" subtitle="Your financial position at a glance." />
+      <PageHeading
+        title="Overview"
+        subtitle={`${ledger?.name ?? "Current ledger"} · ${monthLabel}`}
+      />
 
-      <section className="metric-grid">
-        <MetricCard title="Net Worth" value={formatMoney(netWorth)} description="Assets plus liabilities in the current ledger.">
-          <MetricRow label="Assets" value={formatMoney(assetTotal)} tone={assetTotal < 0 ? "negative" : "positive"} />
-          <MetricRow label="Liabilities" value={formatMoney(liabilityTotal)} tone={liabilityTotal < 0 ? "negative" : "neutral"} />
-        </MetricCard>
+      <section className="dashboard-lower-grid">
         <div className="card cash-flow-card">
-          <CardHeader title="Cash Flow" meta={monthLabel} />
-          <MetricRow label="Income" value={formatMoney(income)} tone="positive" />
-          <MetricRow label="Expenses" value={formatMoney(-expenses)} tone="negative" />
-          <MetricRow label="Net" value={formatMoney(income - expenses)} tone={income >= expenses ? "positive" : "negative"} />
-          <div className="balance-bar"><span style={{ width: `${Math.min(100, (income / Math.max(income + expenses, 1)) * 100)}%` }} /><i /></div>
+          <span className="eyebrow">This month</span>
+          <strong className={`card-hero-value ${netCashFlow < 0 ? "negative" : "positive"}`}>
+            {formatMoney(netCashFlow)}
+          </strong>
+          <small>Net cash flow for {monthLabel}.</small>
+          <div>
+            <MetricRow label="Income" value={formatMoney(income)} tone="positive" />
+            <MetricRow label="Spending" value={formatMoney(-expenses)} tone="negative" />
+            <MetricRow label="Net cash flow" value={formatMoney(netCashFlow)} tone={netCashFlow < 0 ? "negative" : "positive"} />
+          </div>
         </div>
+
         <div className="card accounts-summary-card">
-          <CardHeader title="Accounts" meta="Current balances" />
-          <strong className="card-hero-value">{formatMoney(netWorth)}</strong>
-          {Object.entries(groupTotals(accounts)).map(([group, total]) => <MetricRow key={group} label={group} value={formatMoney(total)} tone={total < 0 ? "negative" : "neutral"} />)}
-          <Link className="card-link" href="/accounts">View all accounts <ChevronRight size={15} /></Link>
-        </div>
-        <div className="card spending-card">
-          <CardHeader title="Spending" meta={monthLabel} />
-          <Donut total={expenses} items={spending} />
-          <Link className="card-link" href="/reports">View full report <ChevronRight size={15} /></Link>
+          <CardHeader title="Account balances" meta="Recorded balance" />
+          <strong className={`card-hero-value ${recordedBalance < 0 ? "negative" : ""}`}>
+            {formatMoney(recordedBalance)}
+          </strong>
+          <MetricRow label="Assets" value={formatMoney(assetTotal)} tone={assetTotal < 0 ? "negative" : "neutral"} />
+          <MetricRow label="Liabilities" value={formatMoney(liabilityTotal)} tone={liabilityTotal < 0 ? "negative" : "neutral"} />
+          <p className="form-note">Based on recorded transactions. Accounts start at $0 until an opening balance is entered.</p>
+          <Link className="card-link" href="/accounts">View accounts <ChevronRight size={15} /></Link>
         </div>
       </section>
 
       <section className="dashboard-lower-grid">
+        <div className="card spending-card">
+          <CardHeader title="Spending by category" meta={monthLabel} />
+          <Donut total={expenses} items={spending} />
+          <Link className="card-link" href="/reports">View spending report <ChevronRight size={15} /></Link>
+        </div>
+
         <div className="card transaction-card">
-          <CardHeader title="Recent Transactions" meta="Most recent" />
+          <CardHeader title="Recent transactions" meta="Newest first" />
           <div className="transaction-table compact">
             <div className="transaction-head"><span>Date</span><span>Payee</span><span>Category</span><span>Account</span><span>Amount</span></div>
             {transactions.slice(0, 6).map((transaction) => (
@@ -87,16 +98,12 @@ export default function DashboardPage() {
           </div>
           {ledger ? <Link className="card-link" href={`/ledgers/${ledger.id}`}>Open ledger <ChevronRight size={15} /></Link> : null}
         </div>
-
-        <div className="card cash-flow-chart-card">
-          <CardHeader title="Cash Flow" meta={cashFlowRange} />
-          <CashFlowBars data={monthlyCashFlow} />
-          <Link className="card-link" href="/reports">View full report <ArrowUpRight size={15} /></Link>
-        </div>
       </section>
 
-      <section className="card recurring-strip">
-        <div><span className="eyebrow">Recurring</span><h2>No recurring rules configured</h2><p>Recurring reminders will appear here after that feature is connected to real ledger data.</p></div>
+      <section className="card cash-flow-chart-card">
+        <CardHeader title="Monthly cash flow" meta={cashFlowRange} />
+        <CashFlowBars data={monthlyCashFlow} />
+        <Link className="card-link" href="/reports">View full report <ArrowUpRight size={15} /></Link>
       </section>
     </div>
   );
@@ -110,19 +117,8 @@ function CardHeader({ title, meta }: { title: string; meta: string }) {
   return <div className="card-header"><div><h2>{title}</h2><span>{meta}</span></div></div>;
 }
 
-function MetricCard({ title, value, description, children }: { title: string; value: string; description: string; children?: React.ReactNode }) {
-  return <div className="card metric-card"><span className="eyebrow">{title}</span><strong className="card-hero-value">{value}</strong><small>{description}</small>{children ? <div>{children}</div> : null}</div>;
-}
-
 function MetricRow({ label, value, tone }: { label: string; value: string; tone: "positive" | "negative" | "neutral" }) {
   return <div className="metric-row"><span>{label}</span><strong className={tone === "neutral" ? "" : tone}>{value}</strong></div>;
-}
-
-function groupTotals(accounts: Array<{ group: string; balanceMinorUnits: number }>) {
-  return accounts.reduce<Record<string, number>>((result, account) => {
-    result[account.group] = (result[account.group] ?? 0) + account.balanceMinorUnits;
-    return result;
-  }, {});
 }
 
 function Donut({ total, items }: { total: number; items: SpendingItem[] }) {
