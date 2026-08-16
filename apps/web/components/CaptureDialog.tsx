@@ -19,9 +19,11 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [payee, setPayee] = useState("");
+  const [receiptMerchant, setReceiptMerchant] = useState("");
   const [accountID, setAccountID] = useState("");
   const [categoryID, setCategoryID] = useState("");
   const [categorySuggestion, setCategorySuggestion] = useState<string | null>(null);
+  const [categoryWasManuallyChosen, setCategoryWasManuallyChosen] = useState(false);
   const [note, setNote] = useState("");
   const [receipts, setReceipts] = useState<File[]>([]);
   const [ocrStatus, setOcrStatus] = useState<"idle" | "reading" | "applied" | "needsReview" | "unavailable">("idle");
@@ -53,6 +55,27 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
     if (categoryID && !destinationAccounts.some((item) => item.id === categoryID)) setCategoryID("");
   }, [categoryID, destinationAccounts]);
 
+  // Category suggestions are derived continuously instead of only once when OCR
+  // finishes. This makes auto-selection work even when the ledger categories are
+  // refreshed after OCR returns. A user's explicit choice always wins.
+  useEffect(() => {
+    if (!receipt || kind !== "expense" || categoryWasManuallyChosen) return;
+    const expenseCategories = accounts.filter((item) => item.type === "expense");
+    if (expenseCategories.length === 0) return;
+
+    const suggestion = suggestExpenseCategory(
+      receiptMerchant || payee,
+      lineItems,
+      expenseCategories,
+      transactions,
+    );
+
+    if (suggestion) {
+      setCategoryID(suggestion.account.id);
+      setCategorySuggestion(suggestion.reason);
+    }
+  }, [accounts, categoryWasManuallyChosen, kind, lineItems, payee, receipt, receiptMerchant, transactions]);
+
   if (!open) return null;
 
   function resetAndClose() {
@@ -60,10 +83,12 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
     setKind("expense");
     setAmount("");
     setPayee("");
+    setReceiptMerchant("");
     setNote("");
     setReceipts([]);
     setCategoryID("");
     setCategorySuggestion(null);
+    setCategoryWasManuallyChosen(false);
     setOcrStatus("idle");
     setOcrWarnings([]);
     setMissingFields([]);
@@ -83,20 +108,24 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
     setOcrWarnings([]);
     setMissingFields([]);
     setLineItems([]);
+    setReceiptMerchant("");
     setCategoryID("");
     setCategorySuggestion(null);
+    setCategoryWasManuallyChosen(false);
     setMode("form");
     void extract(nextReceipts);
   }
 
   function clearReceipt() {
     setReceipts([]);
+    setReceiptMerchant("");
     setOcrStatus("idle");
     setOcrWarnings([]);
     setMissingFields([]);
     setLineItems([]);
     setCategoryID("");
     setCategorySuggestion(null);
+    setCategoryWasManuallyChosen(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
     if (cameraInputRef.current) cameraInputRef.current.value = "";
   }
@@ -109,15 +138,8 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
       if (result.fields.amountMinorUnits) setAmount((result.fields.amountMinorUnits / 100).toFixed(2));
       if (result.fields.date) setDate(result.fields.date);
       if (merchant) setPayee(merchant);
+      setReceiptMerchant(merchant);
       setLineItems(items);
-
-      if (kind === "expense") {
-        const expenseCategories = accounts.filter((item) => item.type === "expense");
-        const suggestion = suggestExpenseCategory(merchant, items, expenseCategories, transactions);
-        setCategoryID(suggestion?.account.id ?? "");
-        setCategorySuggestion(suggestion?.reason ?? null);
-      }
-
       setMissingFields(result.missingFields);
       setOcrWarnings(result.warnings);
       setOcrStatus(result.status === "ok" ? "applied" : result.status === "not_configured" ? "unavailable" : "needsReview");
@@ -189,6 +211,7 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
                   setKind(item);
                   setCategoryID("");
                   setCategorySuggestion(null);
+                  setCategoryWasManuallyChosen(false);
                 }}>
                   {item[0].toUpperCase() + item.slice(1)}
                 </button>
@@ -201,7 +224,11 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
               <label className="field"><span>{kind === "income" ? "Deposit account" : kind === "transfer" ? "From account" : "Payment account"}</span><select value={accountID} onChange={(event) => setAccountID(event.target.value)}>{sourceAccounts.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
               <label className="field">
                 <span>{kind === "transfer" ? "To account" : kind === "income" ? "Income category" : "Category"}</span>
-                <select required value={categoryID} onChange={(event) => { setCategoryID(event.target.value); setCategorySuggestion(null); }}>
+                <select required value={categoryID} onChange={(event) => {
+                  setCategoryID(event.target.value);
+                  setCategorySuggestion(null);
+                  setCategoryWasManuallyChosen(true);
+                }}>
                   <option value="" disabled>Choose category</option>
                   {destinationAccounts.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
                 </select>
@@ -272,7 +299,7 @@ function suggestExpenseCategory(
   for (const rule of rules) {
     if (!rule.words.test(text)) continue;
     const account = findCategory(categories, rule.aliases);
-    if (account) return { account, reason: "Suggested from the receipt merchant and items." };
+    if (account) return { account, reason: "Auto-selected from the receipt merchant and items." };
   }
 
   const normalizedMerchant = normalizeWords(merchant);
@@ -283,8 +310,11 @@ function suggestExpenseCategory(
       && categories.some((category) => category.id === transaction.categoryId)
     );
     const account = previous ? categories.find((category) => category.id === previous.categoryId) : undefined;
-    if (account) return { account, reason: "Suggested from your previous transactions with this merchant." };
+    if (account) return { account, reason: "Auto-selected from your previous transactions with this merchant." };
   }
+
+  const fallback = findCategory(categories, ["other expenses"]);
+  if (fallback) return { account: fallback, reason: "Auto-selected as Other Expenses. Review if needed." };
 
   return null;
 }
