@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { ArrowLeft, Eye, FileImage, Pencil, Trash2, X } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { ChangeEvent, FormEvent, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { useLedger } from "@/components/LedgerProvider";
 import { formatDate, formatMoney } from "@/lib/format";
+import { isMissingLineItemSchema, loadTransactionLineItems, type ReceiptLineItem } from "@/lib/transaction-line-items";
 import type { Account, Transaction, TransactionKind } from "@/lib/types";
 
 export default function TransactionDetailPage() {
@@ -17,6 +18,30 @@ export default function TransactionDetailPage() {
   const [receiptError, setReceiptError] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [lineItems, setLineItems] = useState<ReceiptLineItem[]>([]);
+  const [lineItemsError, setLineItemsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLineItems([]);
+    setLineItemsError(null);
+    if (!transaction?.id) return () => { cancelled = true; };
+
+    void loadTransactionLineItems(transaction.id)
+      .then((items) => {
+        if (!cancelled) setLineItems(items);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        if (isMissingLineItemSchema(error)) {
+          setLineItemsError("Receipt items are not available until the latest database migration is applied.");
+          return;
+        }
+        setLineItemsError(error instanceof Error ? error.message : "Could not load receipt items.");
+      });
+
+    return () => { cancelled = true; };
+  }, [transaction?.id]);
 
   if (!transaction) {
     return (
@@ -38,9 +63,7 @@ export default function TransactionDetailPage() {
           <p>{formatDate(transaction.date)} · Revision {transaction.revision}</p>
         </div>
         <div className="heading-actions">
-          <button className="secondary-button" type="button" onClick={() => setEditOpen(true)}>
-            <Pencil size={17} />Edit
-          </button>
+          <button className="secondary-button" type="button" onClick={() => setEditOpen(true)}><Pencil size={17} />Edit</button>
           <Link className="secondary-button" href={ledger ? `/ledgers/${ledger.id}` : "/accounts"}><ArrowLeft size={17} />Back</Link>
         </div>
       </div>
@@ -51,6 +74,7 @@ export default function TransactionDetailPage() {
           <strong className={transaction.amountMinorUnits < 0 ? "detail-amount negative" : "detail-amount positive"}>
             {formatMoney(transaction.amountMinorUnits, { sign: transaction.amountMinorUnits > 0 })}
           </strong>
+
           <div className="detail-grid">
             <DetailItem label="Type" value={transaction.kind} />
             <DetailItem label="Date" value={formatDate(transaction.date)} />
@@ -59,6 +83,23 @@ export default function TransactionDetailPage() {
             <DetailItem label="Revision" value={`${transaction.revision}`} />
             <DetailItem label="Receipt" value={transaction.receiptName ?? "None"} />
           </div>
+
+          {lineItems.length > 0 ? (
+            <div className="receipt-review-note receipt-review-panel">
+              <strong>Receipt items</strong>
+              <span>{lineItems.length} item{lineItems.length === 1 ? "" : "s"} saved with this transaction.</span>
+              <div className="receipt-line-items">
+                {lineItems.map((item, index) => (
+                  <span key={`${item.description}-${index}`}>
+                    <small>{lineItemLabel(item)}</small>
+                    <b>{typeof item.amountMinorUnits === "number" ? formatMoney(item.amountMinorUnits) : "—"}</b>
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {lineItemsError ? <p className="auth-error">{lineItemsError}</p> : null}
+
           {transaction.receiptAttachmentId ? (
             <button className="secondary-button" type="button" onClick={async () => {
               try {
@@ -75,10 +116,9 @@ export default function TransactionDetailPage() {
           {receiptError ? <p className="auth-error">{receiptError}</p> : null}
           {deleteError ? <p className="auth-error">{deleteError}</p> : null}
           {errorMessage ? <p className="auth-error">{errorMessage}</p> : null}
+
           <div className="detail-actions">
-            <button className="primary-button" type="button" onClick={() => setEditOpen(true)}>
-              <Pencil size={17} />Edit transaction
-            </button>
+            <button className="primary-button" type="button" onClick={() => setEditOpen(true)}><Pencil size={17} />Edit transaction</button>
             <button className="secondary-button danger-button" type="button" disabled={isWorking} onClick={async () => {
               const confirmed = window.confirm("Remove this transaction? It will stop affecting balances, but the record remains recoverable.");
               if (!confirmed) return;
@@ -109,15 +149,20 @@ export default function TransactionDetailPage() {
         />
       ) : null}
 
-      {receiptPreview ? (
-        <ReceiptPreviewDialog preview={receiptPreview} onClose={() => setReceiptPreview(null)} />
-      ) : null}
+      {receiptPreview ? <ReceiptPreviewDialog preview={receiptPreview} onClose={() => setReceiptPreview(null)} /> : null}
     </div>
   );
 }
 
 function DetailItem({ label, value }: { label: string; value: string }) {
   return <div><span>{label}</span><strong>{value}</strong></div>;
+}
+
+function lineItemLabel(item: ReceiptLineItem) {
+  if (item.quantity && item.unitPriceMinorUnits && item.quantity !== 1) {
+    return `${item.quantity} × ${formatMoney(item.unitPriceMinorUnits)} · ${item.description}`;
+  }
+  return `${item.quantity && item.quantity !== 1 ? `${item.quantity}× ` : ""}${item.description}`;
 }
 
 function EditTransactionDialog({
@@ -200,13 +245,8 @@ function EditTransactionDialog({
     <div className="dialog-backdrop" role="presentation" onMouseDown={onClose}>
       <section className="dialog" role="dialog" aria-modal="true" aria-labelledby="edit-transaction-title" onMouseDown={(event) => event.stopPropagation()}>
         <div className="dialog-header">
-          <div>
-            <span className="eyebrow">Transaction</span>
-            <h2 id="edit-transaction-title">Edit transaction</h2>
-          </div>
-          <button className="icon-button" type="button" onClick={onClose} aria-label="Close">
-            <X size={20} />
-          </button>
+          <div><span className="eyebrow">Transaction</span><h2 id="edit-transaction-title">Edit transaction</h2></div>
+          <button className="icon-button" type="button" onClick={onClose} aria-label="Close"><X size={20} /></button>
         </div>
 
         <form className="transaction-form" onSubmit={submit}>
@@ -222,51 +262,18 @@ function EditTransactionDialog({
           </div>
 
           <div className="form-grid">
-            <label className="field field-amount">
-              <span>Amount</span>
-              <div className="money-input"><span>$</span><input required inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.00" autoFocus /></div>
-            </label>
-            <label className="field">
-              <span>Date</span>
-              <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
-            </label>
-            <label className="field">
-              <span>{kind === "income" ? "Deposit account" : kind === "transfer" ? "From account" : "Payment account"}</span>
-              <select value={accountID} onChange={(event) => {
-                setAccountID(event.target.value);
-                if (event.target.value === categoryID) setCategoryID("");
-              }}>
-                {sourceAccounts.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
-              </select>
-            </label>
-            <label className="field">
-              <span>{kind === "transfer" ? "To account" : kind === "income" ? "Income category" : "Category"}</span>
-              <select value={categoryID} onChange={(event) => setCategoryID(event.target.value)}>
-                <option value="" disabled>Choose</option>
-                {destinationAccounts.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
-              </select>
-            </label>
-            <label className="field field-wide">
-              <span>Payee or description</span>
-              <input value={payee} onChange={(event) => setPayee(event.target.value)} placeholder="Optional" />
-            </label>
-            <label className="field field-wide">
-              <span>Note</span>
-              <input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional" />
-            </label>
-            <label className="field field-wide receipt-file-field">
-              <span>Receipt</span>
-              <input type="file" accept="image/*" onChange={chooseReceipt} />
-              <small>{receiptFile ? receiptFile.name : transaction.receiptName ? `Current: ${transaction.receiptName}` : "No receipt attached"}</small>
-            </label>
+            <label className="field field-amount"><span>Amount</span><div className="money-input"><span>$</span><input required inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.00" autoFocus /></div></label>
+            <label className="field"><span>Date</span><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
+            <label className="field"><span>{kind === "income" ? "Deposit account" : kind === "transfer" ? "From account" : "Payment account"}</span><select value={accountID} onChange={(event) => { setAccountID(event.target.value); if (event.target.value === categoryID) setCategoryID(""); }}>{sourceAccounts.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
+            <label className="field"><span>{kind === "transfer" ? "To account" : kind === "income" ? "Income category" : "Category"}</span><select value={categoryID} onChange={(event) => setCategoryID(event.target.value)}><option value="" disabled>Choose</option>{destinationAccounts.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
+            <label className="field field-wide"><span>Payee or description</span><input value={payee} onChange={(event) => setPayee(event.target.value)} placeholder="Optional" /></label>
+            <label className="field field-wide"><span>Note</span><input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional" /></label>
+            <label className="field field-wide receipt-file-field"><span>Receipt</span><input type="file" accept="image/*" onChange={chooseReceipt} /><small>{receiptFile ? receiptFile.name : transaction.receiptName ? `Current: ${transaction.receiptName}` : "No receipt attached"}</small></label>
           </div>
 
           <p className="form-note"><FileImage size={14} /> Selecting a new receipt attaches it to this transaction after the edit is saved.</p>
           {localError ? <p className="auth-error">{localError}</p> : null}
-          <div className="dialog-actions">
-            <button className="secondary-button" type="button" onClick={onClose}>Cancel</button>
-            <button className="primary-button" type="submit" disabled={isWorking || !accountID || !categoryID || accountID === categoryID}>{isWorking ? "Saving..." : "Save changes"}</button>
-          </div>
+          <div className="dialog-actions"><button className="secondary-button" type="button" onClick={onClose}>Cancel</button><button className="primary-button" type="submit" disabled={isWorking || !accountID || !categoryID || accountID === categoryID}>{isWorking ? "Saving..." : "Save changes"}</button></div>
         </form>
       </section>
     </div>
@@ -278,13 +285,8 @@ function ReceiptPreviewDialog({ preview, onClose }: { preview: { url: string; na
     <div className="dialog-backdrop" role="presentation" onMouseDown={onClose}>
       <section className="dialog receipt-dialog" role="dialog" aria-modal="true" aria-labelledby="receipt-preview-title" onMouseDown={(event) => event.stopPropagation()}>
         <div className="dialog-header">
-          <div>
-            <span className="eyebrow">Private receipt</span>
-            <h2 id="receipt-preview-title">{preview.name}</h2>
-          </div>
-          <button className="icon-button" type="button" onClick={onClose} aria-label="Close">
-            <X size={20} />
-          </button>
+          <div><span className="eyebrow">Private receipt</span><h2 id="receipt-preview-title">{preview.name}</h2></div>
+          <button className="icon-button" type="button" onClick={onClose} aria-label="Close"><X size={20} /></button>
         </div>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img className="receipt-full-preview" src={preview.url} alt={preview.name} />
