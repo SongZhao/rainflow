@@ -15,6 +15,8 @@ export async function prepareReceiptFile(file: File): Promise<File> {
   } catch {
     // Preserve the existing upload path for image formats that the browser cannot
     // decode into a canvas (for example, HEIC support varies by browser/device).
+    // Supported browser image formats still go through the same 1,800 px / 600 KB
+    // preparation policy as the iOS app before OCR and storage.
     return file;
   }
 
