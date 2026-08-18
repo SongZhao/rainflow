@@ -28,6 +28,7 @@ final class AppContainer: ObservableObject {
         let startupMessage = configuration.validationMessage ?? databaseMessage
         let supabase = startupMessage == nil ? configuration.makeSupabaseClient() : nil
         let api = supabase.map { SupabaseLedgerAPI(client: $0) }
+        let lineItemStore = supabase.map { SupabaseTransactionLineItemStore(client: $0) }
 
         self.configuration = configuration
         self.supabase = supabase
@@ -40,7 +41,8 @@ final class AppContainer: ObservableObject {
         self.ledgerStore = LedgerStore(
             api: api,
             database: database,
-            receiptStore: receiptStore
+            receiptStore: receiptStore,
+            lineItemStore: lineItemStore
         )
     }
 }
