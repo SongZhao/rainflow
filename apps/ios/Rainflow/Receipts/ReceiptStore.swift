@@ -25,12 +25,10 @@ enum ReceiptStoreError: LocalizedError {
 
 actor ReceiptStore {
     private let fileManager = FileManager.default
-    private let maximumDimension: CGFloat = 2_400
 
     func stage(imageData: Data, originalFileName: String = "receipt.jpg") throws -> StagedReceipt {
         guard let image = UIImage(data: imageData) else { throw ReceiptStoreError.unreadableImage }
-        let resized = image.resizedToFit(maximumDimension: maximumDimension)
-        guard let jpegData = resized.jpegData(compressionQuality: 0.86) else {
+        guard let jpegData = image.preparedReceiptJPEGData() else {
             throw ReceiptStoreError.encodingFailed
         }
 
@@ -87,15 +85,45 @@ actor ReceiptStore {
     }
 }
 
-private extension UIImage {
-    func resizedToFit(maximumDimension: CGFloat) -> UIImage {
+extension UIImage {
+    /// Produces a receipt image that stays OCR-friendly without storing phone-camera originals.
+    /// The image is normalized onto an opaque white background, limited to 1,800 px on its
+    /// longest edge, and compressed adaptively toward a 600 KB budget.
+    func preparedReceiptJPEGData(
+        maximumDimension: CGFloat = 1_800,
+        targetByteCount: Int = 600_000
+    ) -> Data? {
         let longest = max(size.width, size.height)
-        guard longest > maximumDimension, longest > 0 else { return self }
-        let scale = maximumDimension / longest
-        let target = CGSize(width: size.width * scale, height: size.height * scale)
-        let renderer = UIGraphicsImageRenderer(size: target)
-        return renderer.image { _ in
-            draw(in: CGRect(origin: .zero, size: target))
+        guard longest > 0 else { return nil }
+
+        let scale = longest > maximumDimension ? maximumDimension / longest : 1
+        let targetSize = CGSize(width: size.width * scale, height: size.height * scale)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+
+        let normalizedImage = UIGraphicsImageRenderer(size: targetSize, format: format).image { _ in
+            UIColor.white.setFill()
+            UIRectFill(CGRect(origin: .zero, size: targetSize))
+            draw(in: CGRect(origin: .zero, size: targetSize))
         }
+
+        let qualities: [CGFloat] = [0.78, 0.72, 0.66, 0.60]
+        var fallback: Data?
+
+        for quality in qualities {
+            guard let data = normalizedImage.jpegData(compressionQuality: quality) else { continue }
+            fallback = data
+            if data.count <= targetByteCount {
+                return data
+            }
+        }
+
+        return fallback
+    }
+
+    /// Backward-compatible call site used by the camera and photo picker flows.
+    func normalizedReceiptJPEGData() -> Data? {
+        preparedReceiptJPEGData()
     }
 }

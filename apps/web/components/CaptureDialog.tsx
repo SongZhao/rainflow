@@ -4,6 +4,7 @@ import { Camera, Check, FileImage, Images, PenLine, X } from "lucide-react";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { Account, TransactionKind } from "@/lib/types";
 import { formatMoney } from "@/lib/format";
+import { prepareReceiptFiles } from "@/lib/receipt-image";
 import { saveTransactionLineItems, type ReceiptLineItem } from "@/lib/transaction-line-items";
 import { useLedger } from "./LedgerProvider";
 
@@ -98,12 +99,11 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
     onClose();
   }
 
-  function selectFile(event: ChangeEvent<HTMLInputElement>) {
+  async function selectFile(event: ChangeEvent<HTMLInputElement>) {
     const selectedFiles = Array.from(event.target.files ?? []);
     if (!selectedFiles.length) return;
-    const files = timestampReceiptFiles(selectedFiles, receipts);
-    const nextReceipts = [...receipts, ...files];
-    setReceipts(nextReceipts);
+
+    setMode("form");
     setOcrStatus("reading");
     setOcrWarnings([]);
     setMissingFields([]);
@@ -112,8 +112,21 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
     setCategoryID("");
     setCategorySuggestion(null);
     setCategoryWasManuallyChosen(false);
-    setMode("form");
-    void extract(nextReceipts);
+
+    try {
+      const preparedFiles = await prepareReceiptFiles(selectedFiles);
+      const files = timestampReceiptFiles(preparedFiles, receipts);
+      const nextReceipts = [...receipts, ...files];
+      setReceipts(nextReceipts);
+      void extract(nextReceipts);
+    } catch (error) {
+      setOcrStatus("needsReview");
+      setOcrWarnings([
+        error instanceof Error
+          ? `Could not prepare the receipt image: ${error.message}`
+          : "Could not prepare the receipt image. Try another photo.",
+      ]);
+    }
   }
 
   function clearReceipt() {
