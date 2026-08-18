@@ -1,5 +1,5 @@
 const MAXIMUM_DIMENSION = 1_800;
-const TARGET_BYTES = 600 * 1024;
+const TARGET_BYTES = 600_000;
 const JPEG_QUALITIES = [0.78, 0.72, 0.66, 0.60] as const;
 
 export async function prepareReceiptFiles(files: File[]): Promise<File[]> {
