@@ -74,7 +74,7 @@ enum ReceiptLineItemParser {
             guard let descriptionRange = Range(match.range(at: descriptionGroup), in: text),
                   let quantityRange = Range(match.range(at: quantityGroup), in: text),
                   let unitPriceRange = Range(match.range(at: unitPriceGroup), in: text),
-                  let quantity = Double(text[quantityRange]),
+                  let quantity = Double(String(text[quantityRange])),
                   quantity > 0,
                   let unitPriceMinorUnits = minorUnits(
                     from: String(text[unitPriceRange]),
@@ -97,8 +97,18 @@ enum ReceiptLineItemParser {
             .replacingOccurrences(of: "€", with: "")
             .replacingOccurrences(of: "£", with: "")
             .replacingOccurrences(of: "¥", with: "")
-            .replacingOccurrences(of: ",", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if normalized.contains(",") && !normalized.contains(".") {
+            let pieces = normalized.split(separator: ",", omittingEmptySubsequences: false)
+            if pieces.count == 2, pieces[1].count <= 2 {
+                normalized = pieces.joined(separator: ".")
+            } else {
+                normalized = normalized.replacingOccurrences(of: ",", with: "")
+            }
+        } else {
+            normalized = normalized.replacingOccurrences(of: ",", with: "")
+        }
 
         if currency.minorUnitScale == 0 {
             normalized = normalized.components(separatedBy: ".").first ?? normalized
