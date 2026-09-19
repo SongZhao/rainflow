@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { canonicalMerchant, suggestExpenseCategory } from "../../lib/receipt-category";
+import { canonicalMerchant, frequentExpenseCategories, suggestExpenseCategory } from "../../lib/receipt-category";
 import type { Account, TransactionKind } from "../../lib/types";
 
 function expenseCategory(id: string, name: string): Account {
@@ -73,4 +73,30 @@ test("known merchant variants reuse corrected categories", () => {
 test("new restaurants remain Dining without confirmed employee-benefit history", () => {
   expect(suggestExpenseCategory("New Cafe", [{ description: "Latte" }], categories, [])?.account.name)
     .toBe("Dining");
+});
+
+
+test("frequent category quick picks rank expense history and cap at six", () => {
+  const ranked = frequentExpenseCategories(categories, [
+    { payee: "A", categoryId: "employee-benefits", kind: "expense" },
+    { payee: "B", categoryId: "class-material", kind: "expense" },
+    { payee: "C", categoryId: "employee-benefits", kind: "expense" },
+    { payee: "D", categoryId: "office", kind: "expense" },
+    { payee: "E", categoryId: "class-material", kind: "expense" },
+    { payee: "F", categoryId: "class-material", kind: "expense" },
+    { payee: "Income", categoryId: "office", kind: "income" },
+  ], 6);
+
+  expect(ranked).toHaveLength(6);
+  expect(ranked.slice(0, 3).map((item) => item.name)).toEqual([
+    "Class material supplies",
+    "Employee benefits",
+    "Office supplies",
+  ]);
+});
+
+test("low-confidence fallback requires a user category choice", () => {
+  const suggestion = suggestExpenseCategory("Unknown Merchant", [], categories, []);
+  expect(suggestion?.source).toBe("fallback");
+  expect(suggestion?.account.name).toBe("Other Expenses");
 });
