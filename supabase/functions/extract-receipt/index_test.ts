@@ -100,3 +100,39 @@ Deno.test("product-only receipt fragment leaves merchant for manual review", () 
   assertEquals(parsed.fields.merchant, null);
   assertEquals(parsed.missingFields.includes("merchant"), true);
 });
+
+
+Deno.test("weak Curio header does not beat an explicit Daiso brand", () => {
+  const parsed = parseReceiptText(`
+    Curio
+    DAISO
+    Receipt date 09/13/2026
+    Bamboo Skewers 2.25
+    TOTAL $7.41
+  `);
+
+  assertEquals(parsed.fields.merchant, "Daiso");
+});
+
+Deno.test("weak single-word Curio merchant is left for review", () => {
+  const parsed = parseReceiptText(`
+    Curio
+    Receipt date 09/13/2026
+    Bamboo Skewers 2.25
+    TOTAL $7.41
+  `);
+
+  assertEquals(parsed.fields.merchant, null);
+  assertEquals(parsed.missingFields.includes("merchant"), true);
+});
+
+Deno.test("known single-word Target merchant remains accepted", () => {
+  const parsed = parseReceiptText(`
+    Target
+    Receipt date 09/11/2026
+    Simply Saline 9.69
+    TOTAL $10.67
+  `);
+
+  assertEquals(parsed.fields.merchant, "Target");
+});
