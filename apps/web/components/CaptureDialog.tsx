@@ -239,18 +239,6 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
               <label className="field field-amount"><span>Amount</span><div className="money-input"><span>$</span><input required inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.00" autoFocus /></div></label>
               <label className="field"><span>{receipt ? "Receipt date" : "Date"}</span><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
               <label className="field"><span>{kind === "income" ? "Deposit account" : kind === "transfer" ? "From account" : "Payment account"}</span><select value={accountID} onChange={(event) => setAccountID(event.target.value)}>{sourceAccounts.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
-              <label className="field">
-                <span>{kind === "transfer" ? "To account" : kind === "income" ? "Income category" : needsCategoryChoice ? "All categories" : "Category"}</span>
-                <select required value={categoryID} onChange={(event) => {
-                  setCategoryID(event.target.value);
-                  setCategorySuggestion(null);
-                  setCategoryWasManuallyChosen(true);
-                }}>
-                  <option value="" disabled>{needsCategoryChoice ? "More categories…" : "Choose category"}</option>
-                  {destinationAccounts.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
-                </select>
-                {categorySuggestion ? <small>{categorySuggestion.reason}</small> : null}
-              </label>
               {needsCategoryChoice && frequentCategories.length > 0 ? (
                 <div className="field field-wide frequent-category-field">
                   <span>Frequent categories</span>
@@ -276,6 +264,18 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
                   </div>
                 </div>
               ) : null}
+              <label className="field">
+                <span>{kind === "transfer" ? "To account" : kind === "income" ? "Income category" : needsCategoryChoice ? "All categories" : "Category"}</span>
+                <select required value={categoryID} onChange={(event) => {
+                  setCategoryID(event.target.value);
+                  setCategorySuggestion(null);
+                  setCategoryWasManuallyChosen(true);
+                }}>
+                  <option value="" disabled>{needsCategoryChoice ? "More categories…" : "Choose category"}</option>
+                  {destinationAccounts.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
+                </select>
+                {categorySuggestion ? <small>{categorySuggestion.reason}</small> : null}
+              </label>
               <label className="field field-wide"><span>Payee or description</span><input value={payee} onChange={(event) => setPayee(event.target.value)} placeholder="Optional" /></label>
               <label className="field field-wide"><span>Note</span><input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional" /></label>
             </div>
