@@ -1,7 +1,11 @@
 import type { Account, TransactionKind } from "@/lib/types";
 import type { ReceiptLineItem } from "@/lib/transaction-line-items";
 
-export type CategorySuggestion = { account: Account; reason: string };
+export type CategorySuggestion = {
+  account: Account;
+  reason: string;
+  source: "merchant_history" | "receipt_rule" | "fallback" | "frequency";
+};
 
 export function suggestExpenseCategory(
   merchant: string,
@@ -18,7 +22,11 @@ export function suggestExpenseCategory(
       && categories.some((category) => category.id === transaction.categoryId)
     );
     const account = previous ? categories.find((category) => category.id === previous.categoryId) : undefined;
-    if (account) return { account, reason: "Auto-selected from your previous transactions with this merchant." };
+    if (account) return {
+      account,
+      reason: "Auto-selected from your previous transactions with this merchant.",
+      source: "merchant_history",
+    };
   }
 
   const text = normalizeWords([merchant, ...items.map((item) => item.description)].join(" "));
@@ -58,13 +66,43 @@ export function suggestExpenseCategory(
   for (const rule of rules) {
     if (!rule.words.test(text)) continue;
     const account = findCategory(categories, rule.aliases);
-    if (account) return { account, reason: "Auto-selected from the receipt merchant and items." };
+    if (account) return {
+      account,
+      reason: "Auto-selected from the receipt merchant and items.",
+      source: "receipt_rule",
+    };
   }
 
   const fallback = findCategory(categories, ["other expenses"]);
-  if (fallback) return { account: fallback, reason: "Auto-selected as Other Expenses. Review if needed." };
+  if (fallback) return {
+    account: fallback,
+    reason: "Rainflow could not confidently categorize this receipt. Choose a category.",
+    source: "fallback",
+  };
 
   return null;
+}
+
+export function frequentExpenseCategories(
+  categories: Account[],
+  transactions: Array<{ categoryId: string; kind: TransactionKind }>,
+  limit = 6,
+) {
+  const counts = new Map<string, number>();
+  for (const transaction of transactions) {
+    if (transaction.kind !== "expense") continue;
+    counts.set(transaction.categoryId, (counts.get(transaction.categoryId) ?? 0) + 1);
+  }
+
+  return categories
+    .map((account, index) => ({
+      account,
+      count: counts.get(account.id) ?? 0,
+      index,
+    }))
+    .sort((a, b) => b.count - a.count || a.index - b.index)
+    .slice(0, Math.max(0, limit))
+    .map(({ account }) => account);
 }
 
 export function canonicalMerchant(value: string) {
