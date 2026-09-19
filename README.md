@@ -1,8 +1,19 @@
 # Rainflow
 
-Rainflow is a modern personal-finance ledger for a private group of fewer than 50 users. This repository is a **build-prepared internal-alpha source package** for the iPhone app, shared Swift domain, Supabase authority boundary, and Mac web prototype.
+Rainflow is a personal-finance ledger for a small private group. The repository contains the deployed web app, the Supabase-backed ledger and receipt pipeline, shared Swift domain code, and the iPhone client source.
 
-It is **not an installable `.ipa`**. Apple signing, a real Supabase project, a successful Xcode build, and an App Store Connect/TestFlight upload must still be completed on macOS with the project owner's accounts.
+**Current source of truth:** the `main` branch. As of 2026-09-18, this README was refreshed against HEAD `c4ab5ef`.
+
+## Current product state
+
+- The web app is a functional deployed alpha, not a browser-local prototype.
+- Pushes to `main` that change `apps/web/**` are built, tested with Playwright, bundled with OpenNext, and deployed to Cloudflare Workers by GitHub Actions.
+- Supabase is the current authority for authentication, ledger data, transaction RPCs, receipt metadata, and private receipt storage.
+- Receipt import supports server-side OCR through the Supabase `extract-receipt` Edge Function.
+- OCR results can populate merchant, date, total, and structured line items.
+- Receipt line items are persisted with the transaction and shown again in transaction detail.
+- Expense categories can be auto-selected from receipt merchant/items or prior merchant history; explicit user choices take precedence.
+- The iPhone client source is present, but Apple signing/TestFlight release work is separate from the deployed web app.
 
 ## Repository map
 
@@ -10,10 +21,29 @@ It is **not an installable `.ipa`**. Apple signing, a real Supabase project, a s
 docs/                         Product, architecture, design, roadmap, ADRs
 packages/RainflowDomain/      Pure Swift money and transaction invariants
 apps/ios/                     SwiftUI iPhone app generated with XcodeGen
-apps/web/                     Next.js Mac web prototype
-supabase/                     Authoritative schema, RLS, RPCs, and SQL tests
-scripts/                      Static checks, Mac bootstrap, and archive helper
+apps/web/                     Deployed Next.js web app
+supabase/                     Schema, RLS, RPCs, Storage policies, Edge Functions, SQL tests
+scripts/                      Validation, Mac bootstrap, and archive helpers
+.github/workflows/            iOS CI and web build/test/Cloudflare deployment
 ```
+
+## Implemented in the web app
+
+- Email OTP authentication through Supabase Auth.
+- Supabase-backed ledger loading and switching.
+- Personal and shared ledger creation.
+- Shared-ledger email invitations.
+- Dashboard, account, ledger, report, attachment, and transaction-detail flows.
+- Expense, income, and transfer creation.
+- Transaction create/update/delete flows through the authoritative backend.
+- Camera/photo/file receipt import.
+- Private receipt upload and later attachment viewing.
+- Server-side OCR through `extract-receipt`.
+- Merchant, date, total, and structured receipt line-item extraction.
+- Transaction line-item persistence and detail rendering.
+- Expense-category auto-selection from receipt content and merchant history, with `Other Expenses` fallback.
+- Responsive phone and desktop web layouts.
+- Cloudflare Workers deployment through OpenNext.
 
 ## Implemented in the iPhone source
 
@@ -25,50 +55,91 @@ scripts/                      Static checks, Mac bootstrap, and archive helper
 - Protected local receipt staging, image resizing, and client-side SHA-256 calculation.
 - Immutable private Supabase Storage upload followed by idempotent attachment-manifest finalization.
 - Ledger setup with the approved default account template.
-- Dashboard, Accounts, Transactions, Reports, and the center Capture action.
+- Dashboard, Accounts, Transactions, Reports, and Capture.
 - Manual Expense, Income, and Transfer flows using exact `Int64` minor units.
 - Camera and photo-library receipt selection.
 - Cached read-only launch while offline; posted mutations still require connectivity.
 
-## Implemented in the shared/backend source
+The iPhone source is not an installable `.ipa`. Apple signing, physical-device validation, archive validation, and TestFlight upload still require the project owner's Apple environment.
+
+## Backend and data model
 
 - Pure Swift double-entry domain with exact balancing, currency, date, and overflow checks.
-- PostgreSQL ledger schema with one authoritative transaction aggregate.
-- Deferred database balance constraints as defense in depth.
-- Row-level read policies and owner-scoped private receipt insert/read policies; app clients cannot overwrite or delete stored receipt bytes.
+- PostgreSQL ledger schema with authoritative transaction aggregates.
+- Row-level security for ledger and receipt access.
 - Security-definer RPCs for ledger creation and atomic transaction create/update/delete/restore.
 - Idempotent transaction creation and expected-revision conflict protection.
-- Same-ledger foreign-key constraints for account parents and attachment manifests.
-- Attachment integrity incident outbox schema.
+- Private Supabase Storage receipt policies.
+- Ledger membership and invitation schema.
+- Expanded default expense categories.
+- Structured transaction line-item schema.
+- Receipt attachment finalization and integrity-incident outbox schema.
 
-## Still required before a useful TestFlight build
+Current migrations:
 
-1. Create a Supabase development project and execute both migrations successfully.
-2. Configure the Supabase email template to send the OTP token, then configure production SMTP before broader testing.
-3. Put the project URL, publishable key, Apple Team ID, and registered bundle identifier in the gitignored `Local.xcconfig`.
-4. Run the real Xcode 26 simulator and device builds on a Mac.
-5. Exercise authentication, RLS, transaction RPCs, receipt upload/finalization, and offline recovery against the real project.
-6. Archive, validate, and upload through Xcode Organizer.
+```text
+202607260001_initial_ledger.sql
+202607260002_receipt_storage.sql
+202607270003_rpc_optional_fields_compat.sql
+202607280004_ledger_membership_and_invites.sql
+202608150005_expand_default_expense_categories.sql
+202608150006_transaction_line_items.sql
+```
 
-The Mac web client remains a browser-local UI prototype and is not yet connected to the authoritative backend. Export/restore, account deletion challenges, transaction edit/delete UI, and the trusted attachment-integrity/email worker remain later implementation work.
+## Web deployment
 
-## Validate this package
+The web app uses Next.js with OpenNext on Cloudflare Workers.
+
+The `.github/workflows/web.yml` pipeline:
+
+```text
+push to main affecting apps/web/**
+        ↓
+npm ci
+        ↓
+Next.js build
+        ↓
+Playwright
+        ↓
+OpenNext Cloudflare build
+        ↓
+Cloudflare Workers deploy
+```
+
+The Worker configured in `apps/web/wrangler.jsonc` is `rainflow-web`.
+
+## Current engineering priorities
+
+The main product loop is already functional:
+
+```text
+sign in
+  → select/create ledger
+  → capture receipt or enter manually
+  → OCR merchant/date/total/line items
+  → auto-select category
+  → save transaction
+  → persist receipt + line items
+  → review transaction detail
+```
+
+Current work is therefore focused on hardening rather than building that loop from scratch, especially:
+
+1. Receipt image compression and storage-efficiency improvements.
+2. OCR and receipt-parser quality across more merchants and layouts.
+3. Receipt recovery, orphan cleanup, and integrity-worker hardening.
+4. Broader automated coverage and production observability.
+5. iPhone device/TestFlight completion.
+6. Future storage/database portability without making an unnecessary one-way architecture migration.
+
+## Validate this repository
 
 ```bash
 ./scripts/check.sh
 ```
 
-The command runs the pure Swift tests, parser-validates all Swift source, validates project metadata and Markdown links, checks required SQL safeguards, and scans for server credentials.
-
-## Prepare the Xcode project on a Mac
-
-```bash
-./scripts/bootstrap-mac.sh
-```
-
-On a Mac, you can also double-click `Prepare-Rainflow.command`. Then follow [docs/TESTFLIGHT.md](docs/TESTFLIGHT.md). Detailed status and known limits are in [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md), and the current privacy mapping is in [docs/APP_PRIVACY.md](docs/APP_PRIVACY.md).
+For web-specific commands, see [apps/web/README.md](apps/web/README.md). For detailed implementation state and known limits, see [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md).
 
 ## Security boundary
 
-Only the Supabase project URL and **publishable** client key belong in the iPhone app. Never add a service-role key, database password, Apple signing certificate, private key, or App Store Connect API secret to this repository.
-# rainflow
+Only public/publishable client configuration belongs in browser or iPhone client code. Never commit a Supabase service-role key, database password, Google Vision secret, Cloudflare API token, Apple signing certificate/private key, or App Store Connect API secret.
