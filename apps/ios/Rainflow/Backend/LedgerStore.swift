@@ -64,11 +64,18 @@ final class LedgerStore: ObservableObject {
     private let api: SupabaseLedgerAPI?
     private let database: AppDatabase?
     private let receiptStore: ReceiptStore
+    private let lineItemStore: (any TransactionLineItemPersisting)?
 
-    init(api: SupabaseLedgerAPI?, database: AppDatabase?, receiptStore: ReceiptStore) {
+    init(
+        api: SupabaseLedgerAPI?,
+        database: AppDatabase?,
+        receiptStore: ReceiptStore,
+        lineItemStore: (any TransactionLineItemPersisting)? = nil
+    ) {
         self.api = api
         self.database = database
         self.receiptStore = receiptStore
+        self.lineItemStore = lineItemStore
     }
 
     var currency: CurrencyCode {
@@ -152,6 +159,17 @@ final class LedgerStore: ObservableObject {
             draft: draft
         )
 
+        // Receipt detail is normalized into a provider-neutral model before it is
+        // persisted. The concrete store can later move from Supabase to D1 without
+        // changing capture or ledger code.
+        let lineItems: [ReceiptLineItem]
+        if let receiptData {
+            let extraction = await ReceiptTextExtractor.extract(from: receiptData, currency: currency)
+            lineItems = ReceiptLineItemParser.parse(lines: extraction.lineItems, currency: currency)
+        } else {
+            lineItems = []
+        }
+
         let stagedReceipt: StagedReceipt?
         if let receiptData {
             stagedReceipt = try await receiptStore.stage(imageData: receiptData)
@@ -164,6 +182,21 @@ final class LedgerStore: ObservableObject {
         } catch {
             if let stagedReceipt { await receiptStore.delete(stagedReceipt) }
             throw error
+        }
+
+        if !lineItems.isEmpty, let lineItemStore {
+            do {
+                try await lineItemStore.replaceLineItems(
+                    ledgerID: transaction.ledgerID,
+                    transactionID: transaction.id,
+                    items: lineItems
+                )
+            } catch {
+                // The balanced transaction is already committed. Keep that success
+                // truthful and surface the recoverable detail-storage failure instead
+                // of pretending the whole transaction failed.
+                noticeMessage = "The transaction was saved, but its receipt item details could not be stored. You can keep the receipt image and retry the details later."
+            }
         }
 
         var receiptStatus: ReceiptSaveStatus = .none

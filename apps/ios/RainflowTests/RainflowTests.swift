@@ -33,6 +33,28 @@ import Testing
     #expect(result.lineItems.contains("Milk 4.29"))
 }
 
+@Test func structuredReceiptLineItemsPreserveAmountsAndQuantityDetails() throws {
+    let items = ReceiptLineItemParser.parse(
+        lines: [
+            "Apples 3.49",
+            "Bananas 2 x 1.50 3.00"
+        ],
+        currency: .usd
+    )
+
+    let apples = try #require(items.first)
+    #expect(apples.description == "Apples")
+    #expect(apples.amountMinorUnits == 349)
+    #expect(apples.quantity == nil)
+    #expect(apples.unitPriceMinorUnits == nil)
+
+    let bananas = try #require(items.dropFirst().first)
+    #expect(bananas.description == "Bananas")
+    #expect(bananas.amountMinorUnits == 300)
+    #expect(bananas.quantity == 2)
+    #expect(bananas.unitPriceMinorUnits == 150)
+}
+
 @Test func receiptParserHandlesWholeDollarAndOcrZeroTotals() {
     let result = ReceiptTextExtractor.parse(
         lines: [

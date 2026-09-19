@@ -118,26 +118,6 @@ private struct TransactionEntryContext: Identifiable {
     let receiptData: Data?
 }
 
-extension UIImage {
-    func normalizedReceiptJPEGData() -> Data? {
-        let maxSide: CGFloat = 2_200
-        let largestSide = max(size.width, size.height)
-        let scale = largestSide > maxSide ? maxSide / largestSide : 1
-        let targetSize = CGSize(width: size.width * scale, height: size.height * scale)
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
-        format.opaque = true
-
-        let normalizedImage = UIGraphicsImageRenderer(size: targetSize, format: format).image { _ in
-            UIColor.white.setFill()
-            UIRectFill(CGRect(origin: .zero, size: targetSize))
-            draw(in: CGRect(origin: .zero, size: targetSize))
-        }
-
-        return normalizedImage.jpegData(compressionQuality: 0.88)
-    }
-}
-
 enum AppDestination: String, CaseIterable, Identifiable {
     case dashboard
     case ledgers
