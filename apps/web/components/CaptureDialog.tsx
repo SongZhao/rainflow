@@ -5,7 +5,7 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "re
 import type { TransactionKind } from "@/lib/types";
 import { formatMoney } from "@/lib/format";
 import { saveTransactionLineItems, type ReceiptLineItem } from "@/lib/transaction-line-items";
-import { suggestExpenseCategory } from "@/lib/receipt-category";
+import { frequentExpenseCategories, suggestExpenseCategory, type CategorySuggestion } from "@/lib/receipt-category";
 import { useLedger } from "./LedgerProvider";
 
 type Mode = "menu" | "form" | "success";
@@ -22,7 +22,7 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
   const [receiptMerchant, setReceiptMerchant] = useState("");
   const [accountID, setAccountID] = useState("");
   const [categoryID, setCategoryID] = useState("");
-  const [categorySuggestion, setCategorySuggestion] = useState<string | null>(null);
+  const [categorySuggestion, setCategorySuggestion] = useState<CategorySuggestion | null>(null);
   const [categoryWasManuallyChosen, setCategoryWasManuallyChosen] = useState(false);
   const [note, setNote] = useState("");
   const [receipts, setReceipts] = useState<File[]>([]);
@@ -42,6 +42,19 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
     if (kind === "income") return accounts.filter((item) => item.type === "income");
     return sourceAccounts.filter((item) => item.id !== accountID);
   }, [accountID, accounts, kind, sourceAccounts]);
+  const frequentCategories = useMemo(
+    () => kind === "expense"
+      ? frequentExpenseCategories(
+        accounts.filter((item) => item.type === "expense"),
+        transactions,
+        6,
+      )
+      : [],
+    [accounts, kind, transactions],
+  );
+  const needsCategoryChoice = kind === "expense"
+    && !categoryWasManuallyChosen
+    && (!categorySuggestion || categorySuggestion.source === "fallback");
 
   useEffect(() => () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -71,8 +84,12 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
     );
 
     if (suggestion) {
-      setCategoryID(suggestion.account.id);
-      setCategorySuggestion(suggestion.reason);
+      setCategorySuggestion(suggestion);
+      if (suggestion.source === "fallback") {
+        setCategoryID("");
+      } else {
+        setCategoryID(suggestion.account.id);
+      }
     }
   }, [accounts, categoryWasManuallyChosen, kind, lineItems, payee, receipt, receiptMerchant, transactions]);
 
@@ -223,17 +240,42 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
               <label className="field"><span>{receipt ? "Receipt date" : "Date"}</span><input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
               <label className="field"><span>{kind === "income" ? "Deposit account" : kind === "transfer" ? "From account" : "Payment account"}</span><select value={accountID} onChange={(event) => setAccountID(event.target.value)}>{sourceAccounts.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
               <label className="field">
-                <span>{kind === "transfer" ? "To account" : kind === "income" ? "Income category" : "Category"}</span>
+                <span>{kind === "transfer" ? "To account" : kind === "income" ? "Income category" : needsCategoryChoice ? "All categories" : "Category"}</span>
                 <select required value={categoryID} onChange={(event) => {
                   setCategoryID(event.target.value);
                   setCategorySuggestion(null);
                   setCategoryWasManuallyChosen(true);
                 }}>
-                  <option value="" disabled>Choose category</option>
+                  <option value="" disabled>{needsCategoryChoice ? "More categories…" : "Choose category"}</option>
                   {destinationAccounts.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}
                 </select>
-                {categorySuggestion ? <small>{categorySuggestion}</small> : null}
+                {categorySuggestion ? <small>{categorySuggestion.reason}</small> : null}
               </label>
+              {needsCategoryChoice && frequentCategories.length > 0 ? (
+                <div className="field field-wide frequent-category-field">
+                  <span>Frequent categories</span>
+                  <div className="frequent-category-grid" role="group" aria-label="Frequent expense categories">
+                    {frequentCategories.map((category) => (
+                      <button
+                        className="frequent-category-button"
+                        type="button"
+                        key={category.id}
+                        onClick={() => {
+                          setCategoryID(category.id);
+                          setCategorySuggestion({
+                            account: category,
+                            reason: "Selected from your frequent categories.",
+                            source: "frequency",
+                          });
+                          setCategoryWasManuallyChosen(true);
+                        }}
+                      >
+                        {category.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               <label className="field field-wide"><span>Payee or description</span><input value={payee} onChange={(event) => setPayee(event.target.value)} placeholder="Optional" /></label>
               <label className="field field-wide"><span>Note</span><input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Optional" /></label>
             </div>
