@@ -4,6 +4,16 @@
 
 This file tracks concrete engineering work that should be picked up later. It is not a source of truth for deployed behavior; current `main` and production data remain authoritative.
 
+## Receipt merchant false-positive hotfix — completed 2026-09-19
+
+- Production transaction `3b9374a6-13e6-4042-8586-4074bcabe8d1` was corrected from the product title to merchant `Michaels`.
+- `extract-receipt` now rejects obvious product descriptions as merchant candidates and cross-checks merchant candidates against parsed line-item descriptions.
+- If the receipt contains only a product title and no credible merchant signal, extraction leaves merchant blank for review instead of inventing a payee.
+- Regression coverage was added for a Michaels receipt where the product title appears above the merchant.
+- Production received this as a narrow v7 backport on top of the previously deployed parser so unfinished line-item changes from `main` were not rolled out accidentally.
+
+**Important deployment note:** while validating the merchant fix, the newer line-item parser currently in `main` incorrectly associated a `3 x $9.99` line with the preceding `Order date ...` line in a synthetic Michaels fixture. Do not wholesale deploy that newer parser until the line-item TODO below is completed and this regression is fixed.
+
 ## Receipt extraction parser hardening
 
 ### Context
