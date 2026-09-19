@@ -264,7 +264,7 @@ export function CaptureDialog({ open, onClose }: { open: boolean; onClose: () =>
                   </div>
                 </div>
               ) : null}
-              <label className="field">
+              <label className={needsCategoryChoice ? "field field-wide" : "field"}>
                 <span>{kind === "transfer" ? "To account" : kind === "income" ? "Income category" : needsCategoryChoice ? "All categories" : "Category"}</span>
                 <select required value={categoryID} onChange={(event) => {
                   setCategoryID(event.target.value);
