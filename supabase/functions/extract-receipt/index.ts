@@ -207,12 +207,44 @@ function chooseMerchant(lines: string[], lineItems: ReceiptLineItem[]) {
     }
   }
 
+  for (const line of topLines) {
+    const known = knownMerchantName(line);
+    if (known && isMerchantCandidate(line, itemDescriptions)) return known;
+  }
+
   const candidates = topLines
-    .map((line, index) => ({ line, score: merchantCandidateScore(line, index) }))
-    .filter((candidate) => candidate.score >= 8 && isMerchantCandidate(candidate.line, itemDescriptions))
+    .map((line, index) => ({ line, index, score: merchantCandidateScore(line, index) }))
+    .filter((candidate) =>
+      candidate.score >= 8
+      && isMerchantCandidate(candidate.line, itemDescriptions)
+      && hasMerchantEvidence(candidate.line, candidate.index, topLines)
+    )
     .sort((a, b) => b.score - a.score);
 
   return candidates[0] ? normalizeMerchant(candidates[0].line) : undefined;
+}
+
+function knownMerchantName(line: string) {
+  const normalized = normalizeComparableText(line);
+  if (/^michaels(?: store(?: \d+)?)?$/.test(normalized)) return "Michaels";
+  if (/^daiso(?: japan)?(?: \d+)?$/.test(normalized)) return "Daiso";
+  if (/^target(?: store)?(?: \d+)?$/.test(normalized)) return "Target";
+  if (/^(?:the )?ups store(?: \d+)?$/.test(normalized)) return "The UPS Store";
+  return null;
+}
+
+function hasMerchantEvidence(line: string, index: number, topLines: string[]) {
+  if (knownMerchantName(line)) return true;
+  if (/\b(?:hardware|supply|market|mart|store|pharmacy|cafe|coffee|restaurant|grocery|foods|auto|studio|company|co\.?|inc\.?|llc)\b/i.test(line)) return true;
+  if (/^[A-Z0-9 &'’.-]{3,32}$/.test(line) && /[A-Z]{3}/.test(line)) return true;
+
+  const words = normalizeComparableText(line).split(" ").filter(Boolean);
+  if (words.length < 2 || index > 4) return false;
+
+  const nearby = topLines.slice(index + 1, Math.min(index + 4, topLines.length)).join(" ");
+  return /\b(?:store|location)\s*(?:no|number|#)?\s*\d+\b/i.test(nearby)
+    || /\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}/.test(nearby)
+    || /\b\d{2,6}\s+[A-Za-z0-9 .'-]+\s(?:st|street|ave|avenue|rd|road|blvd|boulevard|dr|drive|way|ln|lane)\b/i.test(nearby);
 }
 
 function merchantCandidateScore(line: string, index: number) {
