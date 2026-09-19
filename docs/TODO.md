@@ -41,6 +41,8 @@ Current web behavior:
   - parking/toll/transit evidence → `Transportation`
 - New restaurants with no confirmed history remain `Dining`; Rainflow does not assume every restaurant receipt is an employee benefit.
 - Playwright regression coverage protects the confirmed merchant-history mappings and the new business-category rules.
+- When Rainflow cannot confidently classify an expense, the UI now shows up to **6 frequent expense categories** ranked from the active ledger's transaction history before the full category dropdown.
+- Low-confidence fallback no longer silently commits `Other Expenses`; the user must choose one of the quick categories or use the full list.
 
 Remaining category work:
 
