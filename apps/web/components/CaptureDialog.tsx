@@ -2,7 +2,7 @@
 
 import { Camera, Check, FileImage, Images, PenLine, X } from "lucide-react";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import type { Account, TransactionKind } from "@/lib/types";
+import type { TransactionKind } from "@/lib/types";
 import { formatMoney } from "@/lib/format";
 import { saveTransactionLineItems, type ReceiptLineItem } from "@/lib/transaction-line-items";
 import { suggestExpenseCategory } from "@/lib/receipt-category";
