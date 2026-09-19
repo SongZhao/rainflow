@@ -71,3 +71,32 @@ Deno.test("Ace Hardware receipt uses the tax-inclusive total and real merchant",
     { description: "CUPLING BRASS 5/8\"X3/8\"", amountMinorUnits: 959 },
   ]);
 });
+
+
+Deno.test("product title is not promoted to merchant when a store name is present", () => {
+  const parsed = parseReceiptText(`
+    Super Value 50 Piece Brush Set by Artist's Loft™ Necessities
+    MICHAELS
+    Order date 08/19/2026
+    3 x $9.99
+    SUBTOTAL $44.97
+    DISCOUNT $14.99
+    TOTAL $33.16
+  `);
+
+  assertEquals(parsed.fields.merchant, "MICHAELS");
+  assertEquals(parsed.fields.amountMinorUnits, 3316);
+});
+
+Deno.test("product-only receipt fragment leaves merchant for manual review", () => {
+  const parsed = parseReceiptText(`
+    Super Value 50 Piece Brush Set by Artist's Loft™ Necessities
+    Order date 08/19/2026
+    3 x $9.99
+    SUBTOTAL $29.97
+    TOTAL $33.16
+  `);
+
+  assertEquals(parsed.fields.merchant, null);
+  assertEquals(parsed.missingFields.includes("merchant"), true);
+});
