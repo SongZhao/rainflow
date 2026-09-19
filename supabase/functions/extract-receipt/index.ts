@@ -99,8 +99,8 @@ export function parseReceiptText(rawText: string) {
   const subtotal = chooseLabeledAmount(lines, /\bsub[- ]?total\b/i);
   const tax = chooseLabeledAmount(lines, /\btax\b/i);
   const date = chooseDate(lines);
-  const merchant = chooseMerchant(lines);
   const lineItems = chooseLineItems(lines, subtotal ?? amount?.amountMinorUnits ?? null);
+  const merchant = chooseMerchant(lines, lineItems);
   const missingFields = [merchant ? null : "merchant", amount ? null : "amount", date ? null : "date"].filter((item): item is string => Boolean(item));
 
   if (!amount) warnings.push("No high-confidence receipt total was found.");
@@ -193,22 +193,62 @@ function chooseDate(lines: string[]) {
   return candidates[0]?.date;
 }
 
-function chooseMerchant(lines: string[]) {
-  const topLines = lines.slice(0, 12);
+function chooseMerchant(lines: string[], lineItems: ReceiptLineItem[]) {
+  const topLines = lines.slice(0, 16);
+  const itemDescriptions = lineItems
+    .map((item) => normalizeComparableText(item.description))
+    .filter(Boolean);
+
   for (let index = 0; index < topLines.length; index += 1) {
     if (!/\b(?:thank you for (?:shopping|your purchase)(?: at)?|welcome to|purchased at|sold by)\b/i.test(topLines[index])) continue;
-    for (let candidateIndex = index + 1; candidateIndex < Math.min(index + 4, topLines.length); candidateIndex += 1) if (isMerchantCandidate(topLines[candidateIndex])) return normalizeMerchant(topLines[candidateIndex]);
+    for (let candidateIndex = index + 1; candidateIndex < Math.min(index + 4, topLines.length); candidateIndex += 1) {
+      const candidate = topLines[candidateIndex];
+      if (isMerchantCandidate(candidate, itemDescriptions)) return normalizeMerchant(candidate);
+    }
   }
-  const candidates = topLines.map((line, index) => ({ line, score: 20 - index + (/\b(?:hardware|supply|market|mart|store|pharmacy|cafe|coffee|restaurant|grocery|foods|auto|ace)\b/i.test(line) ? 4 : 0) })).filter((candidate) => isMerchantCandidate(candidate.line)).sort((a, b) => b.score - a.score);
+
+  const candidates = topLines
+    .map((line, index) => ({ line, score: merchantCandidateScore(line, index) }))
+    .filter((candidate) => candidate.score >= 8 && isMerchantCandidate(candidate.line, itemDescriptions))
+    .sort((a, b) => b.score - a.score);
+
   return candidates[0] ? normalizeMerchant(candidates[0].line) : undefined;
 }
 
-function isMerchantCandidate(line: string) {
+function merchantCandidateScore(line: string, index: number) {
+  let score = 16 - index;
+  if (/\b(?:hardware|supply|market|mart|store|pharmacy|cafe|coffee|restaurant|grocery|foods|auto|studio|company|co\.?|inc\.?|llc)\b/i.test(line)) score += 6;
+  if (/^[A-Z0-9 &'’.-]{3,32}$/.test(line) && /[A-Z]{3}/.test(line)) score += 5;
+  if (line.length <= 32) score += 2;
+  if (looksLikeProductDescription(line)) score -= 20;
+  return score;
+}
+
+function isMerchantCandidate(line: string, itemDescriptions: string[] = []) {
   if (line.length < 2 || line.length > 64 || !/[a-z]/i.test(line)) return false;
   if (isIgnoredAmountLine(line) || extractDates(line).length || /(?:[$€£]?\s*(?:\d+)?\.\d{2})/.test(line)) return false;
-  if (/\b(?:thank you|shopping at|welcome|receipt|invoice|transaction|sale|type|method|category|reference|store number|customer|subtotal|total|tax|date|time|terminal|register|cashier|auth|approval|card|visa|mastercard|contactless)\b/i.test(line)) return false;
+  if (/\b(?:thank you|shopping at|welcome|receipt|invoice|transaction|sale|type|method|category|reference|store number|customer|subtotal|total|tax|date|time|terminal|register|cashier|auth|approval|card|visa|mastercard|contactless|order summary|item description|qty|quantity)\b/i.test(line)) return false;
   if (/https?:\/\/|www\.|\S+@\S+/i.test(line) || /^\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}$/.test(line) || /^[\d\s#*:/.,-]+$/.test(line)) return false;
+  if (looksLikeProductDescription(line)) return false;
+
+  const normalized = normalizeComparableText(line);
+  if (itemDescriptions.some((item) =>
+    normalized === item
+    || (normalized.length >= 12 && item.length >= 12 && (normalized.includes(item) || item.includes(normalized)))
+  )) return false;
+
   return true;
+}
+
+function looksLikeProductDescription(line: string) {
+  if (/\b\d+(?:\.\d+)?\s*(?:piece|pieces|pc|pcs|pack|packs|ct|count|oz|lb|lbs|ml|cm|mm|inch|inches)\b/i.test(line)) return true;
+  if (/\bby\s+[a-z0-9][a-z0-9 &'’™®.-]{1,40}$/i.test(line)) return true;
+  if (/[™®]/.test(line) && /\b(?:set|canvas|brush|kit|mix|stem|bush|flower|pack|bottle|shirt|shoe)\b/i.test(line)) return true;
+  return false;
+}
+
+function normalizeComparableText(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
 function chooseLineItems(lines: string[], expectedSubtotal: number | null): ReceiptLineItem[] {
