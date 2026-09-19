@@ -78,13 +78,13 @@ test("new restaurants remain Dining without confirmed employee-benefit history",
 
 test("frequent category quick picks rank expense history and cap at six", () => {
   const ranked = frequentExpenseCategories(categories, [
-    { payee: "A", categoryId: "employee-benefits", kind: "expense" },
-    { payee: "B", categoryId: "class-material", kind: "expense" },
-    { payee: "C", categoryId: "employee-benefits", kind: "expense" },
-    { payee: "D", categoryId: "office", kind: "expense" },
-    { payee: "E", categoryId: "class-material", kind: "expense" },
-    { payee: "F", categoryId: "class-material", kind: "expense" },
-    { payee: "Income", categoryId: "office", kind: "income" },
+    { categoryId: "employee-benefits", kind: "expense" },
+    { categoryId: "class-material", kind: "expense" },
+    { categoryId: "employee-benefits", kind: "expense" },
+    { categoryId: "office", kind: "expense" },
+    { categoryId: "class-material", kind: "expense" },
+    { categoryId: "class-material", kind: "expense" },
+    { categoryId: "office", kind: "income" },
   ], 6);
 
   expect(ranked).toHaveLength(6);
