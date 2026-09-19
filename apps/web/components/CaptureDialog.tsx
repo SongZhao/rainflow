@@ -278,8 +278,39 @@ function suggestExpenseCategory(
   categories: Account[],
   transactions: Array<{ payee: string; categoryId: string; kind: TransactionKind }>
 ): CategorySuggestion | null {
+  const merchantKey = canonicalMerchant(merchant);
+
+  // A previously confirmed classification for the same merchant is stronger
+  // evidence than a generic keyword rule. This lets corrected production data
+  // teach future receipt imports without overriding an explicit user choice.
+  if (merchantKey) {
+    const previous = transactions.find((transaction) =>
+      transaction.kind === "expense"
+      && canonicalMerchant(transaction.payee) === merchantKey
+      && categories.some((category) => category.id === transaction.categoryId)
+    );
+    const account = previous ? categories.find((category) => category.id === previous.categoryId) : undefined;
+    if (account) return { account, reason: "Auto-selected from your previous transactions with this merchant." };
+  }
+
   const text = normalizeWords([merchant, ...items.map((item) => item.description)].join(" "));
   const rules: Array<{ aliases: string[]; words: RegExp }> = [
+    {
+      aliases: ["class material supplies"],
+      words: /\b(michaels|daiso|artist s loft|art supply|class material|canvas|paint brush|brush set|craft|floral|flower stem|skewer|toothpick)\b/,
+    },
+    {
+      aliases: ["office supplies"],
+      words: /\b(staples|office depot|office max|ups store|printing|print color|copy service|printer ink|toner|office paper|shipping label|envelope)\b/,
+    },
+    {
+      aliases: ["employee benefits"],
+      words: /\b(employee benefit|employee meal|staff meal|team lunch|team dinner|staff lunch|staff dinner)\b/,
+    },
+    {
+      aliases: ["business operation"],
+      words: /\b(business license|registered agent|bookkeeping|accounting service|software subscription|domain renewal|web hosting|cloudflare|resend|supabase)\b/,
+    },
     { aliases: ["home repairs", "home improvement", "hardware", "home"], words: /\b(ace|hardware|lumber|coupling|cupling|screw|bolt|nail|paint|plumbing|pipe|tool|faucet|fixture)\b/ },
     { aliases: ["groceries", "grocery"], words: /\b(grocery|groceries|safeway|trader joe|whole foods|costco|supermarket|produce|milk|bread|vegetable|fruit)\b/ },
     { aliases: ["dining", "restaurant"], words: /\b(restaurant|cafe|coffee|starbucks|doordash|ubereats|grubhub|pizza|burger|sushi)\b/ },
@@ -302,21 +333,25 @@ function suggestExpenseCategory(
     if (account) return { account, reason: "Auto-selected from the receipt merchant and items." };
   }
 
-  const normalizedMerchant = normalizeWords(merchant);
-  if (normalizedMerchant) {
-    const previous = transactions.find((transaction) =>
-      transaction.kind === "expense"
-      && normalizeWords(transaction.payee) === normalizedMerchant
-      && categories.some((category) => category.id === transaction.categoryId)
-    );
-    const account = previous ? categories.find((category) => category.id === previous.categoryId) : undefined;
-    if (account) return { account, reason: "Auto-selected from your previous transactions with this merchant." };
-  }
-
   const fallback = findCategory(categories, ["other expenses"]);
   if (fallback) return { account: fallback, reason: "Auto-selected as Other Expenses. Review if needed." };
 
   return null;
+}
+
+function canonicalMerchant(value: string) {
+  const normalized = normalizeWords(value);
+  if (!normalized) return "";
+
+  if (/^michaels(?: store(?: \d+)?)?$/.test(normalized)) return "michaels";
+  if (/^daiso(?: japan)?(?: \d+)?$/.test(normalized)) return "daiso";
+  if (/^target(?: store)?(?: \d+)?$/.test(normalized)) return "target";
+  if (/^(?:the )?ups store(?: \d+)?$/.test(normalized)) return "ups store";
+
+  return normalized
+    .replace(/\b(store|location)\s+(?:no|number\s+)?\d+\b/g, "$1")
+    .replace(/\s+\d{3,}$/g, "")
+    .trim();
 }
 
 function findCategory(categories: Account[], aliases: string[]) {
